@@ -7,8 +7,9 @@
 # SL        2.1.3         2023-11-03    Enable comparison contrast column support.
 # SL        2.2.0         2023-11-03    Enable case-insensitive search.
 # SL        2.2.1         2023-11-03    Change column order in comparison picker.
+# SL        2.2.2         2023-11-03    Add comment metadata feature
 
-ver = "2.2.1"
+ver = "2.2.2"
 
 Sys.setlocale('LC_ALL','C')
 
@@ -436,7 +437,7 @@ server <- function(input, output, session) {
 }
 
 path_dataset <- "/srv/shiny-server/crave/www/data/data-latest/"
-#path_dataset <- "~/bio/Projects/operation/ddrcs/www/ddrcs-internal-dev"
+#path_dataset <- "~/bio/Projects/operation/ddrcs/www/ddrcs-internal-dev/"
 
 
 # I/O
@@ -461,6 +462,7 @@ experiments <- experiments %>%
 
 # Wrangle comparisons metadata
 comparisons <- comparisons %>%
+  filter(`#` != "#") %>%
   transmute(`Experiment ID`,
             Contrast,
             `Treatment (diff)` = Treatment,
