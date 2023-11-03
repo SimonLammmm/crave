@@ -5,8 +5,11 @@
 # SL        2.1.1         2023-08-10    Enable reference level KO in view.
 # SL        2.1.2         2023-08-11    Add busy indicator. Fix edge cases with screen selection.
 # SL        2.1.3         2023-11-03    Enable comparison contrast column support.
+# SL        2.2.0         2023-11-03    Enable case-insensitive search.
 
-ver = "2.1.3"
+ver = "2.2.0"
+
+Sys.setlocale('LC_ALL','C')
 
 suppressPackageStartupMessages({
   library(tibble)
@@ -168,7 +171,7 @@ ui <-
                                        column(
                                          width = 4.5,
                                          selectizeInput('comparison_X', label = "Select X comparison", choices = NULL),
-                                         selectizeInput('comparison_Y', label = "Select X comparison", choices = NULL)
+                                         selectizeInput('comparison_Y', label = "Select Y comparison", choices = NULL)
                                          ),
                                        column(
                                          width = 4.5,
@@ -185,12 +188,8 @@ ui <-
                           )
                         )
                       ),
-             #### Exorcise service ####
-             tabPanel("Exorcise online",
-                      fluidPage()
-                      )
-             ),
-             add_busy_bar(color = "#FF0000")
+                      add_busy_bar(color = "#FF0000")
+             )
   )
 
 
@@ -303,7 +302,7 @@ server <- function(input, output, session) {
       plotdata <- plotdata %>%
         filter(!is.na(fdr)) %>%
         filter(!is.na(score)) %>%
-        mutate(goi = case_when(gene %in% input$genes_selected ~ T, T ~ F),
+        mutate(goi = case_when(grepl(paste0("^", input$genes_selected, "$", collapse = "|"), gene, ignore.case = T) ~ T, T ~ F),
                label = case_when(goi ~ gene, T ~ "")) %>%
         arrange(goi)
       p <- ggplot(plotdata, aes(x = score, y = fdr, label = label, colour = goi, gene = gene)) +
@@ -333,7 +332,7 @@ server <- function(input, output, session) {
         filter(!is.na(fdr)) %>%
         filter(!is.na(score)) %>%
         mutate(rank = rank(score),
-               goi = case_when(gene %in% input$genes_selected ~ T, T ~ F),
+               goi = case_when(grepl(paste0("^", input$genes_selected, "$", collapse = "|"), gene, ignore.case = T) ~ T, T ~ F),
                label = case_when(goi ~ gene, T ~ "")) %>%
         filter(!is.na(fdr)) %>%
         arrange(goi)
@@ -369,7 +368,7 @@ server <- function(input, output, session) {
         filter(!is.na(scoreX)) %>%
         filter(!is.na(fdrY)) %>%
         filter(!is.na(scoreY)) %>%
-        mutate(goi = case_when(gene %in% input$genes_selected ~ T, T ~ F),
+        mutate(goi = case_when(grepl(paste0("^", input$genes_selected, "$", collapse = "|"), gene, ignore.case = T) ~ T, T ~ F),
                label = case_when(goi ~ gene, T ~ "")) %>%
         arrange(goi)
       p <- ggplot(plotdata, aes(x = scoreX, y = scoreY, label = label, colour = goi, gene = gene)) +
@@ -395,7 +394,7 @@ server <- function(input, output, session) {
       # Display only endpoint timepoints
       endpointScreens <- comparisons %>% filter(`Days (diff)` == `Days (ref)`) %>% select(`Comparison ID`) %>% unique() %>% unlist() %>% setNames(NULL)
       # Obtain screens of interest from GOI below cutoff
-      include <- sqldf(queryDdrcs(endpointScreens, input$genes_queried, input$analysis_method_gq, "fdr"), connection = con) %>%
+      include <- sqldf(queryDdrcs(endpointScreens[1:100], input$genes_queried, input$analysis_method_gq, "fdr"), connection = con) %>%
         pivot_longer(-gene, names_to = "Comparison ID", values_to = "fdr") %>%
         filter(fdr <= input$p_cutoff) %>%
         select(`Comparison ID`) %>% unique() %>% unlist() %>% setNames(NULL)
@@ -409,11 +408,14 @@ server <- function(input, output, session) {
           filter(!is.na(fdr)) %>%
           filter(!is.na(score)) %>%
           left_join(comparisons, by = "Comparison ID") %>%
-          mutate(goi = case_when(gene %in% input$genes_queried ~ T, T ~ F))
-        p <- ggplot(plotdata, aes(y = score, x = `Comparison ID`)) +
+          mutate(goi = case_when(grepl(paste0("^", input$genes_queried, "$", collapse = "|"), gene, ignore.case = T) ~ T, T ~ F),
+                 x = paste0(`Experiment ID`, ": ", Contrast))
+        p <- ggplot(plotdata, aes(y = score, x = x)) +
           geom_violin(na.rm = T) +
-          geom_point(data = plotdata %>% filter(goi), aes(colour = gene, fdr = fdr, ExperimentID = `Experiment ID`, TreatmentDiff = `Treatment (diff)`, DoseDiff = `Dose (diff)`, DaysDiff = `Days (diff)`, KnockoutDiff = `Knockout (diff)`, TreatmentRef = `Treatment (ref)`, DoseRef = `Dose (ref)`, DaysRef = `Days (ref)`, KnockoutRef = `Knockout (ref)`, CellLine = `Cell line`, Library = `Library`, Exorcised = `Exorcised`)) +
-          theme(axis.text.x = element_text(angle = 45, hjust = 1))
+          geom_point(data = plotdata %>% filter(goi), aes(colour = gene, fdr = fdr, Contrast = Contrast, ExperimentID = `Experiment ID`, TreatmentDiff = `Treatment (diff)`, DoseDiff = `Dose (diff)`, DaysDiff = `Days (diff)`, KnockoutDiff = `Knockout (diff)`, TreatmentRef = `Treatment (ref)`, DoseRef = `Dose (ref)`, DaysRef = `Days (ref)`, KnockoutRef = `Knockout (ref)`, CellLine = `Cell line`, Library = `Library`, Exorcised = `Exorcised`)) +
+          theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+          xlab("") +
+          ylab("Score")
         displaydata <- plotdata %>%
           filter(goi)
         p <- ggplotly(p)
