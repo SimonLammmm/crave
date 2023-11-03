@@ -4,9 +4,9 @@
 # SL        2.1.0         2023-08-08    Enable lazy-loading using SQL data structure.
 # SL        2.1.1         2023-08-10    Enable reference level KO in view.
 # SL        2.1.2         2023-08-11    Add busy indicator. Fix edge cases with screen selection.
-# SL        2.2.0         2023-08-29    Add exorcise service.
+# SL        2.1.3         2023-11-03    Enable comparison contrast column support.
 
-ver = "2.2.0"
+ver = "2.1.3"
 
 suppressPackageStartupMessages({
   library(tibble)
@@ -461,6 +461,7 @@ experiments <- experiments %>%
 comparisons <- comparisons %>%
   transmute(`Experiment ID`,
             `Comparison ID`,
+            Contrast,
             `Treatment (diff)` = Treatment,
             `Dose (diff)` = Dose,
             `Days (diff)` = `Days grown`,
