@@ -6,8 +6,9 @@
 # SL        2.1.2         2023-08-11    Add busy indicator. Fix edge cases with screen selection.
 # SL        2.1.3         2023-11-03    Enable comparison contrast column support.
 # SL        2.2.0         2023-11-03    Enable case-insensitive search.
+# SL        2.2.1         2023-11-03    Change column order in comparison picker.
 
-ver = "2.2.0"
+ver = "2.2.1"
 
 Sys.setlocale('LC_ALL','C')
 
@@ -394,7 +395,7 @@ server <- function(input, output, session) {
       # Display only endpoint timepoints
       endpointScreens <- comparisons %>% filter(`Days (diff)` == `Days (ref)`) %>% select(`Comparison ID`) %>% unique() %>% unlist() %>% setNames(NULL)
       # Obtain screens of interest from GOI below cutoff
-      include <- sqldf(queryDdrcs(endpointScreens[1:100], input$genes_queried, input$analysis_method_gq, "fdr"), connection = con) %>%
+      include <- sqldf(queryDdrcs(endpointScreens, input$genes_queried, input$analysis_method_gq, "fdr"), connection = con) %>%
         pivot_longer(-gene, names_to = "Comparison ID", values_to = "fdr") %>%
         filter(fdr <= input$p_cutoff) %>%
         select(`Comparison ID`) %>% unique() %>% unlist() %>% setNames(NULL)
@@ -408,9 +409,8 @@ server <- function(input, output, session) {
           filter(!is.na(fdr)) %>%
           filter(!is.na(score)) %>%
           left_join(comparisons, by = "Comparison ID") %>%
-          mutate(goi = case_when(grepl(paste0("^", input$genes_queried, "$", collapse = "|"), gene, ignore.case = T) ~ T, T ~ F),
-                 x = paste0(`Experiment ID`, ": ", Contrast))
-        p <- ggplot(plotdata, aes(y = score, x = x)) +
+          mutate(goi = case_when(grepl(paste0("^", input$genes_queried, "$", collapse = "|"), gene, ignore.case = T) ~ T, T ~ F))
+        p <- ggplot(plotdata, aes(y = score, x = `Friendly ID`)) +
           geom_violin(na.rm = T) +
           geom_point(data = plotdata %>% filter(goi), aes(colour = gene, fdr = fdr, Contrast = Contrast, ExperimentID = `Experiment ID`, TreatmentDiff = `Treatment (diff)`, DoseDiff = `Dose (diff)`, DaysDiff = `Days (diff)`, KnockoutDiff = `Knockout (diff)`, TreatmentRef = `Treatment (ref)`, DoseRef = `Dose (ref)`, DaysRef = `Days (ref)`, KnockoutRef = `Knockout (ref)`, CellLine = `Cell line`, Library = `Library`, Exorcised = `Exorcised`)) +
           theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
@@ -435,8 +435,8 @@ server <- function(input, output, session) {
   
 }
 
-#path_dataset <- "/srv/shiny-server/crave/www/app_data/"
-path_dataset <- "~/bio/Projects/operation/ddrcs/www/ddrcs-internal-dev"
+path_dataset <- "/srv/shiny-server/crave/www/data/data-latest/"
+#path_dataset <- "~/bio/Projects/operation/ddrcs/www/ddrcs-internal-dev"
 
 
 # I/O
@@ -462,7 +462,6 @@ experiments <- experiments %>%
 # Wrangle comparisons metadata
 comparisons <- comparisons %>%
   transmute(`Experiment ID`,
-            `Comparison ID`,
             Contrast,
             `Treatment (diff)` = Treatment,
             `Dose (diff)` = Dose,
@@ -474,7 +473,9 @@ comparisons <- comparisons %>%
             `Knockout (ref)` = KO.ref,
             `Cell line`,
             Library,
-            Exorcised)
+            Exorcised,
+            `Friendly ID` = paste0(`Experiment ID`, ": ", Contrast),
+            `Comparison ID`)
 
 # Obtain genes list
 genes <- sqldf("SELECT [gene] from drz_fdr", connection = con) %>% unlist() %>% setNames(NULL)
