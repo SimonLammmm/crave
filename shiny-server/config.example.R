@@ -47,6 +47,11 @@ tags$div(
   tags$p("By continuing to use the site, you agree to the Privacy Policy which can be found in the Legal tab."))
 }
 
+## Temporary notices to be shown as banners on the front page
+notices_info <- NULL
+notices_warning <- NULL
+notices_emergency <- NULL
+
 ## Legal text
 legal_text <- 
   tags$div(
