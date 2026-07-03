@@ -41,7 +41,8 @@ cd crave
 ```
 Copy the shiny-server/config.example.R file as shiny-server/config.R.
 ```
-cp shiny-server/config.example.R shiny-server/config.r```
+cp shiny-server/config.example.R shiny-server/config.r
+```
 Make customisation changes to the config file. Specify where the datasets are.
 ```
 nano shiny-server/config.R
