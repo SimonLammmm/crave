@@ -136,42 +136,39 @@ manageServer <- function(input, output, session) {
   
   updateSelectInput(session, "manage_dataset", choices = names(cons), selected = init_nm)
   
-  output$manage_experiments <- renderDT(
-    isolate(rv$exp),
-    editable = list(target = "cell", disable = list(columns = exp_lock)),
-    rownames = FALSE, filter = "top", server = TRUE,
-    options = list(iDisplayLength = 25, scrollX = TRUE)
-  )
-  output$manage_comparisons <- renderDT(
-    isolate(rv$comp),
-    editable = list(target = "cell", disable = list(columns = comp_lock)),
-    rownames = FALSE, filter = "top", server = TRUE,
-    options = list(iDisplayLength = 25, scrollX = TRUE)
-  )
-  proxy_exp  <- dataTableProxy("manage_experiments")
-  proxy_comp <- dataTableProxy("manage_comparisons")
+  # Client-side tables that re-render from rv (no server-side search state to stick)
+  output$manage_experiments <- renderDT({
+    datatable(rv$exp, editable = list(target = "cell", disable = list(columns = exp_lock)),
+              rownames = FALSE, options = list(iDisplayLength = 25, scrollX = TRUE))
+  }, server = FALSE)
   
-  # Switch dataset -> reload raw CSVs into the tables
+  output$manage_comparisons <- renderDT({
+    datatable(rv$comp, editable = list(target = "cell", disable = list(columns = comp_lock)),
+              rownames = FALSE, options = list(iDisplayLength = 25, scrollX = TRUE))
+  }, server = FALSE)
+  
+  # Switch dataset -> reload raw CSVs; tables re-render reactively from rv
   observeEvent(input$manage_dataset, {
     req(input$manage_dataset)
     d <- manage_read(input$manage_dataset)
     rv$exp <- d$exp; rv$comp <- d$comp
     rv$exp_path <- d$exp_path; rv$comp_path <- d$comp_path
-    replaceData(proxy_exp,  rv$exp,  rownames = FALSE, resetPaging = FALSE, clearSelection = "all")
-    replaceData(proxy_comp, rv$comp, rownames = FALSE, resetPaging = FALSE, clearSelection = "all")
-    # Clear any leftover column filters / global search from the previous dataset
-    updateSearch(proxy_exp,  keywords = list(global = "", columns = rep("", ncol(rv$exp))))
-    updateSearch(proxy_comp, keywords = list(global = "", columns = rep("", ncol(rv$comp))))
     output$manage_validation <- renderUI(NULL)
     output$manage_status <- renderText("")
-  }, ignoreInit = FALSE)
+  }, ignoreInit = TRUE)
   
-  # Persist cell edits into the in-memory copies
+  # Persist cell edits into the in-memory copies (coerce the single edited cell)
   observeEvent(input$manage_experiments_cell_edit, {
-    rv$exp <- editData(rv$exp, input$manage_experiments_cell_edit, proxy_exp, rownames = FALSE)
+    info <- input$manage_experiments_cell_edit
+    tmp <- rv$exp
+    tmp[info$row, info$col + 1] <- info$value
+    rv$exp <- tmp
   })
   observeEvent(input$manage_comparisons_cell_edit, {
-    rv$comp <- editData(rv$comp, input$manage_comparisons_cell_edit, proxy_comp, rownames = FALSE)
+    info <- input$manage_comparisons_cell_edit
+    tmp <- rv$comp
+    tmp[info$row, info$col + 1] <- info$value
+    rv$comp <- tmp
   })
   
   # Validate the current (edited, unsaved) data
