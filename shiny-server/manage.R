@@ -35,23 +35,23 @@ manage_write <- function(exp_df, comp_df, exp_path, comp_path) {
 # Returns an HTML tagList describing any problems found.
 manage_validate <- function(nm, exp_df, comp_df) {
   issues <- list()
-
+  
   expIDs  <- unique(exp_df[["Experiment ID"]])
   compExp <- unique(comp_df[["Experiment ID"]])
   metaCmp <- unique(comp_df[["Comparison ID"]])
-
+  
   # 1. Comparisons whose Experiment ID has no experiment metadata row
   orphan_comp <- setdiff(compExp, expIDs)
   if (length(orphan_comp) > 0)
     issues <- c(issues, list(paste0("Comparisons reference Experiment IDs with no experiment metadata: ",
-                                     paste(orphan_comp, collapse = ", "))))
-
+                                    paste(orphan_comp, collapse = ", "))))
+  
   # 2. Experiments with no comparisons
   orphan_exp <- setdiff(expIDs, compExp)
   if (length(orphan_exp) > 0)
     issues <- c(issues, list(paste0("Experiments have no comparisons: ",
-                                     paste(orphan_exp, collapse = ", "))))
-
+                                    paste(orphan_exp, collapse = ", "))))
+  
   # 3. Metadata <-> database.db comparison_id consistency
   if (!is.null(cons[[nm]])) {
     dbCmp <- tryCatch(
@@ -65,21 +65,21 @@ manage_validate <- function(nm, exp_df, comp_df) {
       meta_not_db <- setdiff(metaCmp, dbCmp)
       if (length(meta_not_db) > 0)
         issues <- c(issues, list(paste0("Comparison IDs in metadata but not in database.db: ",
-                                         paste(meta_not_db, collapse = ", "))))
+                                        paste(meta_not_db, collapse = ", "))))
     } else {
       issues <- c(issues, list("Could not read comparison_id from database.db (no 'stat' table?)."))
     }
   }
-
+  
   # 4. Source column should match the dataset name
   if ("Source" %in% names(comp_df)) {
     bad_src <- setdiff(unique(comp_df[["Source"]]), nm)
     bad_src <- bad_src[!is.na(bad_src) & bad_src != ""]
     if (length(bad_src) > 0)
       issues <- c(issues, list(paste0("Comparisons have a Source other than \"", nm, "\": ",
-                                       paste(bad_src, collapse = ", "))))
+                                      paste(bad_src, collapse = ", "))))
   }
-
+  
   if (length(issues) == 0) {
     tags$div(style = "color: #1a7f37;",
              tags$strong("\u2713 No problems found."),
@@ -123,19 +123,19 @@ manageTab <- if (isTRUE(get0("enable_editing", ifnotfound = FALSE))) {
 manageServer <- function(input, output, session) {
   if (!isTRUE(get0("enable_editing", ifnotfound = FALSE))) return(invisible())
   if (length(cons) == 0) return(invisible())
-
+  
   # Prime with the first dataset so the tables render with correct columns
   init_nm <- names(cons)[1]
   .init   <- manage_read(init_nm)
   rv <- reactiveValues(exp = .init$exp, comp = .init$comp,
                        exp_path = .init$exp_path, comp_path = .init$comp_path)
-
+  
   # Lock key columns (0-based indices, rownames = FALSE)
   exp_lock  <- which(names(.init$exp)  %in% c("Experiment ID")) - 1
   comp_lock <- which(names(.init$comp) %in% c("Experiment ID", "Comparison ID", "Source")) - 1
-
+  
   updateSelectInput(session, "manage_dataset", choices = names(cons), selected = init_nm)
-
+  
   output$manage_experiments <- renderDT(
     isolate(rv$exp),
     editable = list(target = "cell", disable = list(columns = exp_lock)),
@@ -150,7 +150,7 @@ manageServer <- function(input, output, session) {
   )
   proxy_exp  <- dataTableProxy("manage_experiments")
   proxy_comp <- dataTableProxy("manage_comparisons")
-
+  
   # Switch dataset -> reload raw CSVs into the tables
   observeEvent(input$manage_dataset, {
     req(input$manage_dataset)
@@ -164,8 +164,8 @@ manageServer <- function(input, output, session) {
     updateSearch(proxy_comp, keywords = list(global = "", columns = rep("", ncol(rv$comp))))
     output$manage_validation <- renderUI(NULL)
     output$manage_status <- renderText("")
-  }, ignoreInit = TRUE)
-
+  }, ignoreInit = FALSE)
+  
   # Persist cell edits into the in-memory copies
   observeEvent(input$manage_experiments_cell_edit, {
     rv$exp <- editData(rv$exp, input$manage_experiments_cell_edit, proxy_exp, rownames = FALSE)
@@ -173,12 +173,12 @@ manageServer <- function(input, output, session) {
   observeEvent(input$manage_comparisons_cell_edit, {
     rv$comp <- editData(rv$comp, input$manage_comparisons_cell_edit, proxy_comp, rownames = FALSE)
   })
-
+  
   # Validate the current (edited, unsaved) data
   observeEvent(input$manage_validate, {
     output$manage_validation <- renderUI(manage_validate(input$manage_dataset, rv$exp, rv$comp))
   })
-
+  
   # Save -> backup + write + reload
   observeEvent(input$manage_save, {
     res <- tryCatch({
