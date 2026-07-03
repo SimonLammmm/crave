@@ -136,6 +136,7 @@ ui <-
              ontologyTab,
              #### Shiny UI: Exorcise ####
              exorciseTab,
+             manageTab,
              #### Shiny UI: Refresh data connection ####
              tabPanel("Refresh data", icon = icon("arrows-rotate"),
                       fluidPage(

@@ -127,7 +127,7 @@ if(!file.exists("config.R")) {
   options(shiny.host = "0.0.0.0", shiny.port = 3838)
   shinyApp(ui, server)
 } else {
-  
+
   # If config.R exists, load modules
   source("config.R")
   source("biplot.R")
@@ -142,7 +142,10 @@ if(!file.exists("config.R")) {
   source("heatmap.R")
   source("init.R")
   source("legal.R")
+  source("manage.R")
+  source("analysis.R")
   source("network.R")
+  source("notices.R")
   source("overlap.R")
   source("pendragonator.R")
   source("rank.R")
@@ -150,7 +153,7 @@ if(!file.exists("config.R")) {
   source("umap.R")
   source("upset.R")
   source("volcano.R")
-  
+
   # Load and validate datasets
   load()
   if(!canExplore) {
@@ -159,7 +162,7 @@ if(!file.exists("config.R")) {
     server <- function(input, output, session) {}
     options(shiny.host = "0.0.0.0", shiny.port = 3838)
     shinyApp(ui, server)
-    
+
   } else {
     #### Run ####
     source("uielements.R")

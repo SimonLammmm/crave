@@ -1583,3 +1583,7 @@ server <- function(input, output, session) {
   motd <- sample(motds, 1)
   output$motd <- renderText({ motd })
 }
+output$motd <- renderText({ motd })
+
+  manageServer(input, output, session)
+}
