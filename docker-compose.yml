@@ -1,0 +1,10 @@
+services:
+  crave:
+    image: simonlammmm/crave:latest
+    container_name: crave
+    rm: true
+    ports:
+      - "3838:3838"
+    volumes:
+      - path/to/folder/containing/datasets:/data
+      - /var/run/docker.sock:/var/run/docker.sock
