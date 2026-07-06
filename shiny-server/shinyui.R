@@ -137,6 +137,7 @@ ui <-
              #### Shiny UI: Exorcise ####
              exorciseTab,
              manageTab,
+             analysisTab,
              #### Shiny UI: Refresh data connection ####
              tabPanel("Refresh data", icon = icon("arrows-rotate"),
                       fluidPage(

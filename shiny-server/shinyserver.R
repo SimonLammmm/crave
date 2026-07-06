@@ -1582,8 +1582,6 @@ server <- function(input, output, session) {
   set.seed(round(as.numeric(Sys.time())/3600))
   motd <- sample(motds, 1)
   output$motd <- renderText({ motd })
-}
-output$motd <- renderText({ motd })
-
   manageServer(input, output, session)
+  analysisServer(input, output, session)
 }
