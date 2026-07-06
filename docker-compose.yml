@@ -1,0 +1,20 @@
+services:
+  crave:
+    image: simonlammmm/crave:4.25
+    ports:
+      - "8080:3838"
+    volumes:
+      # Required: config.R configuration file. Copy from config.example.R and edit as needed
+      - "./shiny-server/config.example.R:/app/config.R"
+      # Required: CRAVE format dataset. Specify the container-side path in config.R
+      - "./example-dataset/data/:/data/dataset-1/"
+
+      # Optional: additional volume declarations
+      #- "/path/to/dataset-2/:/data/dataset-2/"
+
+      # Optional: Exorcise dataset and Docker socket
+      #- "/path/to/exorcise/data:/data/exorcise/"
+      #- "/var/run/docker.sock:/var/run/docker.sock"
+
+      # Optional: branding assets
+      #- "/path/to/branding/assets/:/app/www/"

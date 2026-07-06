@@ -41,12 +41,12 @@ loadOne <- function(ds) {
       mutate(Citation = case_when(grepl("https://doi.org", DOI) ~ paste0("<a href=", sub("^.*?\\((.+)\\).*?$", "\\1", DOI), " target=\"_blank\">", Citation, "</a>"),
                                   T ~ Citation)) %>%
       left_join(comparisons, by = "Experiment ID") %>%
-      group_by(`Experiment ID`, Citation, Organism) %>%
       summarise(Treatments = paste(sort(unique(`Treatment`)), collapse = ", "),
                 Knockouts = paste(sort(unique(`KO`)), collapse = ", "),
                 `Cell lines` = paste(sort(unique(`Cell line`)), collapse = ", "),
                 Libraries = paste(sort(unique(Library)), collapse = ", "),
-                Source = ds$name) %>%
+                Source = ds$name,
+                .by = c(`Experiment ID`, Citation, Organism)) %>%
       ungroup()
     # Wrangle comparisons metadata
     comparisons <- comparisons %>%
@@ -142,7 +142,16 @@ load <- function() {
   canGuideLibrary <<- ifelse(exists("file_guideLibrary"), T, F)
   canLibraries <<- ifelse(exists("file_libraries"), T, F)
   canOntology <<- ifelse(nrow(ontology) > 0, T, F)
-  canExorcise <<- ifelse(length(exorcise_root) > 0 & length(exorcise_docker), T, F)
+  if(length(exorcise_root > 0) & length(exorcise_docker) > 0) {
+    if(system(paste0("docker run --rm ", exorcise_docker, " exorcise --help"), ignore.stderr = T, ignore.stdout = T) == 0) {
+      canExorcise <<- T
+    } else {
+      canExorcise <<- F
+    }
+  } else {
+    canExorcise <<- F
+  }
+  canExplore <<- ifelse(nrow(experiments) > 0, T, F)
 }
 
 Formaldehyde <- NULL # silly way to mask away the `Formaldehyde` built-in dataset so we can actually use "Formaldehyde" in queries

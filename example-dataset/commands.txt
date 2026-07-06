@@ -1,0 +1,32 @@
+#### Example simonlammmm/exorcise commands to generate a CRAVE dataset
+#
+# Requires a counts matrix tsv:
+# - first column guide IDs, can be anything as long as they are unique
+# - second column gene symbols, will be displayed on CRAVE
+#
+# Requires an experimental design xlsx:
+# - experiment metadata in the Experiment details sheet
+# - sample metadata and replicate/condition mappings in the Sample details sheet
+# - contrasts metadata and condition/contrasts and contrasts/groups mappings in the Control groups sheet
+# - analysis method selection for each group
+#
+# Example counts matrix, experimental design, and CRAVE dataset are provided
+# Below commands use the counts matrix and experimental design to produce the CRAVE dataset, assuming your cwd is this directory
+# Each command runs in less than a minute
+#
+
+EXORCISE_IMAGE=simonlammmm/exorcise:1.6_arm64
+docker pull $EXORCISE_IMAGE
+
+#### Run batch MAGeCK/DrugZ/Chronos analysis
+docker run --rm -v $(pwd):/data $EXORCISE_IMAGE crispr_pipeline \
+  --counts ./ \
+  --output-dir results/ \
+  example.xlsx
+
+#### Generate CRAVE dataset
+docker run --rm -v $(pwd):/data $EXORCISE_IMAGE crispr-screen-viewer database -n \
+  --out-dir ./data/ \
+  --results-dir results/ \
+  --counts-dir ./ \
+  example.xlsx
