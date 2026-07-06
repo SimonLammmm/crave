@@ -1,6 +1,6 @@
 services:
   crave:
-    image: simonlammmm/crave:latest
+    image: simonlammmm/crave:4.25
     ports:
       - "8080:3838"
     volumes:
