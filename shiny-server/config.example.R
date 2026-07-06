@@ -3,19 +3,41 @@
 ## For the public repo, copy to config.example.R with /data/... paths.
 
 ## Datasets — one entry per database directory
+# `name` is the display name in CRAVE.
+# `path` is the absolute path of the directory containing CRAVE format datasets
+# containing a database.db file. If using docker compose, this is the absolute path
+# in the Docker container, specified in docker-compose.yml
+# Set `guides` = TRUE if you also have a guideLibrary.db file.
+# Most users will leave this FALSE.
+# Set `citation_from_id` = TRUE if you want to dynamically generate citations
+# from experiment IDs.
+# Most users will leave this FALSE.
+
 datasets <- list(
   list(
-    name             = "Default",
-    path             = "",
-    guides           = TRUE,
-    citation_from_id = TRUE
+    name             = "Dataset 1",
+    path             = "/data/dataset-1",
+    guides           = FALSE,
+    citation_from_id = FALSE
   )
+  # Add additional entries if you have additional database directories
+  #,
+  #list(
+  #  name             = "Dataset 2",
+  #  path             = "/data/dataset-2",
+  #  guides           = FALSE,
+  #  citation_from_id = FALSE
+  #)
 )
 
 ## Exorcise location - should point to the directory containing .2bit files
-exorcise_root <- ""
+# This should be an absolute path. If using docker compose, this should
+# be the absolute path in the Docker container,  specified in docker-compose.yml
+exorcise_root <- "/data/exorcise/"
 ## Exorcise Docker image name - docker pull simonlammmm/exorcise
-exorcise_docker <- ""
+# If using, obtain Exorcise by running docker pull simonlammmm/exorcise:latest
+# This variable should be simonlammmm/exorcise:latest unless you chose to pull a different tag
+exorcise_docker <- "simonlammmm/exorcise:latest"
 
 ## Look and feel
 # Choose a shinytheme. Possible values:
@@ -24,6 +46,9 @@ exorcise_docker <- ""
 portal_theme <- "cerulean"
 
 ## Branding
+# Optional logo to be displayed in the top bar. Will be rendered at 24px height
+portal_logo     <- NULL
+# Branding text to be shown on the front page
 portal_name     <- "CRAVE"
 portal_subtitle <- "CRISPR results app for visualisation and exploration"
 front_page_html <- "<p>CRAVE enables the analysis of hits within and between CRISPR screens.</p>"

@@ -30,9 +30,20 @@ if(canExorcise) {
   descExorcise <- ""
 }
 
+# Decide whether to render a custom logo
+# Use the default logo
+logo <- HTML(paste0('<a style="text-decoration:none;cursor:default;" class="active" href="#">', portal_name, '</a>'))
+
+# Replace with a supplied logo if specified in config.R and file exists
+if(!is.null(portal_logo)) {
+  if(file.exists(paste0("www/", portal_logo))) {
+    logo <- tags$img(src=portal_logo, height="24px")
+  }
+}
+
 ui <-
   navbarPage(theme = shinytheme(portal_theme),
-             HTML(paste0('<a style="text-decoration:none;cursor:default;" class="active" href="#">', portal_name, '</a>')),
+             logo,
              windowTitle = portal_name,
              id = "main",
              shinyjs::useShinyjs(),
@@ -77,8 +88,6 @@ ui <-
                         tags$p(paste0(portal_subtitle, ", this version ", ver, ", last updated ", updated, ".")),
                         #### Deployer-specific content (credits, logos, contact) lives in config.R: portal_footer ####
                         portal_footer,
-                        tags$br(),
-                        actionButton(inputId = "refresh", label = "Refresh data connection", icon = icon("arrows-rotate"), class = "btn-info"),
                         tags$br()
                       )
              ),

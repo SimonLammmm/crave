@@ -678,6 +678,8 @@ if(canExorcise) {
                )
              )
     )
+} else {
+  exorciseTab <- NULL
 }
 
 #### Shiny UI: Guides ####

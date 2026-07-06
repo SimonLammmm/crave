@@ -71,9 +71,10 @@
 # AE        4.22          2026-06-23    Custom branding (portal name, front-page text, footer) via config.R
 # SL        4.23          2026-06-23    Intelligently enable/disable features that depend on ontology, library, guide library, and Exorcise available
 # SL        4.24          2026-06-23    Deprecate genetypes, never implemented
+# SL        4.25          2026-07-06    Basic config and dataset error checking
 
-ver <<- "4.24"
-updated <<- "2026-06-23"
+ver <<- "4.25"
+updated <<- "2026-07-06"
 
 #### Preamble ####
 
@@ -118,35 +119,53 @@ suppressPackageStartupMessages({
 options(warn = 1)
 noWS <<- c("before", "after", "outside", "after-begin", "before-end")
 
-# Source in
-source("config.R")
-source("biplot.R")
-source("common.R")
-source("dataset.R")
-source("download.R")
-source("enrichment.R")
-source("exorcise.R")
-source("genequery.R")
-source("guideLibrary.R")
-source("hitmap.R")
-source("heatmap.R")
-source("init.R")
-source("legal.R")
-source("network.R")
-source("notices.R")
-source("overlap.R")
-source("pendragonator.R")
-source("rank.R")
-source("rocauc.R")
-source("umap.R")
-source("upset.R")
-source("volcano.R")
-
-#### Run ####
-load()
-source("uielements.R")
-source("shinyui.R")
-source("shinyserver.R")
-
-options(shiny.host = "0.0.0.0", shiny.port = 3838, shiny.maxRequestSize = 100 * 1024 * 1024)
-shinyApp(ui, server)
+# Check that config.R exists
+if(!file.exists("config.R")) {
+  # If not, then serve an error page
+  ui <- fluidPage("Error starting CRAVE: config.R not found. Please obtain a template config.example.R file at <https://github.com/SimonLammmm/crave/blob/a95e5a6034baee7837d999cfbba46adb0a35f48c/shiny-server/config.example.R>, configure it, and put it next to app.R. If you're using Docker Compose, edit docker-compose.yml and bind it at /app/config.R.")
+  server <- function(input, output, session) {}
+  options(shiny.host = "0.0.0.0", shiny.port = 3838)
+  shinyApp(ui, server)
+} else {
+  
+  # If config.R exists, load modules
+  source("config.R")
+  source("biplot.R")
+  source("common.R")
+  source("dataset.R")
+  source("download.R")
+  source("enrichment.R")
+  source("exorcise.R")
+  source("genequery.R")
+  source("guideLibrary.R")
+  source("hitmap.R")
+  source("heatmap.R")
+  source("init.R")
+  source("legal.R")
+  source("network.R")
+  source("overlap.R")
+  source("pendragonator.R")
+  source("rank.R")
+  source("rocauc.R")
+  source("umap.R")
+  source("upset.R")
+  source("volcano.R")
+  
+  # Load and validate datasets
+  load()
+  if(!canExplore) {
+    # If invalid, then serve an error page
+    ui <- fluidPage("Error starting CRAVE: invalid datasets. Did you forget to specify a CRAVE dataset in config.R? If using Docker Compose, you need to bind config.R at /src/config.R and make sure the paths in config.R point to absolute paths in the container.")
+    server <- function(input, output, session) {}
+    options(shiny.host = "0.0.0.0", shiny.port = 3838)
+    shinyApp(ui, server)
+    
+  } else {
+    #### Run ####
+    source("uielements.R")
+    source("shinyui.R")
+    source("shinyserver.R")
+    options(shiny.host = "0.0.0.0", shiny.port = 3838, shiny.maxRequestSize = 100 * 1024 * 1024)
+    shinyApp(ui, server)
+  }
+}
