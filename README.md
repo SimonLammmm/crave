@@ -2,7 +2,7 @@
 Contrasts-based Resource for Analysis, Visualisation, and Exploration
 
 ## Abstract
-CRAVE enables exploration of single contrasts between a pair of conditions in a biological experiment as well as analysis of trends across contrasts.
+CRAVE enables exploration of single contrasts between a pair of conditions in a biological experiment as well as analysis of trends across contrasts. CRAVE is the engine by which [DDRcs](https://sjlab.cruk.cam.ac.uk/app/ddrcs/), the DNA damage response CRISPR screen viewer, works.
 
 ## Deployment
 CRAVE can be deployed as a Docker container or natively in Rshiny.
@@ -18,8 +18,6 @@ Run CRAVE with Docker Compose
 docker compose up -d
 ```
 A preview of CRAVE is now accessible at http://localhost:8080.
-
-Customise CRAVE by copying the shiny-server/config.example.R file as config.R and editing it. Update the docker-compose.yml file with any additional bind mounts you need.
 
 ### Docker
 Clone this repo and navigate into it.
@@ -38,8 +36,6 @@ docker run --rm crave:latest -v "./shiny-server/config.example.R:/app/config.R" 
 ```
 A preview of CRAVE is now accessible at http://localhost:8080.
 
-Customise CRAVE by copying the shiny-server/config.example.R file as config.R and editing it. At runtime, bind mount that instead of config.example.R. Adjust the command with any additional bind mounts you need.
-
 ### Rshiny
 Run in native Rshiny on your local machine.
 Clone this repo and navigate into it.
@@ -57,4 +53,15 @@ Rscript shiny-server/app.R
 ```
 A preview of CRAVE is now accessible at http://localhost:8080.
 
-Customise CRAVE by editing the shiny-server/config.R file.
+## Configuration
+
+CRAVE is configured using a config.R file that is sourced when the app runs. Use config.R to specify
+ * CRAVE dataset paths
+ * Exorcise data path and Docker image
+ * Branding and logos
+
+The file is written in R and therefore you need to supply R code.
+
+When using Docker or Docker Compose, any paths need to be container paths. You also need to bind mount volumes to those container paths. When using native Rshiny, the paths can be paths on your local machine.
+
+When using branding logos with img src, the location for those logos needs to be /app/www for Docker or Docker Compose, or shiny-server/www for native Rshiny.
