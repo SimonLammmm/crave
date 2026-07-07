@@ -32,7 +32,7 @@ docker build -t crave:latest .
 ```
 Run CRAVE with Docker
 ```
-docker run --rm crave:latest -v "./shiny-server/config.example.R:/app/config.R" -v "./example-dataset/data/:/data/dataset-1/" -p 8080:3838
+docker run --rm -v "./shiny-server/config.example.R:/app/config.R" -v "./example-dataset/data/:/data/dataset-1/" -p 8080:3838 crave:latest
 ```
 A preview of CRAVE is now accessible at http://localhost:8080.
 
