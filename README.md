@@ -2,7 +2,9 @@
 Contrasts-based Resource for Analysis, Visualisation, and Exploration
 
 ## Abstract
-CRAVE enables exploration of single contrasts between a pair of conditions in a biological experiment as well as analysis of trends across contrasts. CRAVE is the engine by which [DDRcs](https://sjlab.cruk.cam.ac.uk/app/ddrcs/), the DNA damage response CRISPR screen viewer, works.
+CRAVE enables exploration of single contrasts between a pair of conditions in a biological experiment as well as analysis of trends across contrasts.
+
+[DDRcs](https://sjlab.cruk.cam.ac.uk/app/ddrcs/), the DNA damage response CRISPR screen viewer, runs on CRAVE and can be visited to preview the portal.
 
 ## Deployment
 CRAVE can be deployed as a Docker container or natively in Rshiny.
@@ -25,10 +27,14 @@ Clone this repo and navigate into it.
 git clone https://github.com/SimonLammmm/crave.git
 cd crave
 ```
+Pull the Docker image from [Docker Hub](https://hub.docker.com/repository/docker/simonlammmm/crave/tags).
+```
+docker pull simonlammmm/crave:latest
+```
 Build the Docker image.
 ```
 cd docker
-docker build -t crave:latest .
+docker build -t simonlammmm/crave:latest .
 ```
 Run CRAVE with Docker
 ```
@@ -65,3 +71,9 @@ The file is written in R and therefore you need to supply R code.
 When using Docker or Docker Compose, any paths need to be container paths. You also need to bind mount volumes to those container paths. When using native Rshiny, the paths can be paths on your local machine.
 
 When using branding logos with img src, the location for those logos needs to be /app/www for Docker or Docker Compose, or shiny-server/www for native Rshiny.
+
+## Datasets
+
+CRAVE requires a CRAVE-formatted dataset. An example dataset is provided in this repo under example-dataset/. You can build your own dataset of CRISPR contrasts data analysed with [DrugZ](https://doi.org/10.1186/s13073-019-0665-3), [MAGeCK](https://doi.org/10.1186/s13059-014-0554-4), and [Chronos](https://doi.org/10.1186/s13059-021-02540-7) using Exorcise ([GitHub](https://github.com/SimonLammmm/exorcise)) ([Docker Hub](https://hub.docker.com/repository/docker/simonlammmm/exorcise/tags)) ([Article](https://doi.org/10.1186/s13073-024-01414-4])).
+
+Example inputs and commands to regenerate the example dataset are in the example-dataset/ directory.
