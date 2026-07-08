@@ -145,7 +145,6 @@ if(!file.exists("config.R")) {
   source("manage.R")
   source("analysis.R")
   source("network.R")
-  source("notices.R")
   source("overlap.R")
   source("pendragonator.R")
   source("rank.R")
