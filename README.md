@@ -31,10 +31,9 @@ Pull the Docker image from [Docker Hub](https://hub.docker.com/repository/docker
 ```
 docker pull simonlammmm/crave:latest
 ```
-Build the Docker image.
+Or optionally build the Docker image from this repo.
 ```
-cd docker
-docker build -t simonlammmm/crave:latest .
+# docker build -t simonlammmm/crave:latest .
 ```
 Run CRAVE with Docker
 ```
