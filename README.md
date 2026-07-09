@@ -76,3 +76,7 @@ When using branding logos with img src, the location for those logos needs to be
 CRAVE requires a CRAVE-formatted dataset. An example dataset is provided in this repo under example-dataset/. You can build your own dataset of CRISPR contrasts data analysed with [DrugZ](https://doi.org/10.1186/s13073-019-0665-3), [MAGeCK](https://doi.org/10.1186/s13059-014-0554-4), and [Chronos](https://doi.org/10.1186/s13059-021-02540-7) using Exorcise ([GitHub](https://github.com/SimonLammmm/exorcise)) ([Docker Hub](https://hub.docker.com/repository/docker/simonlammmm/exorcise/tags)) ([Article](https://doi.org/10.1186/s13073-024-01414-4])).
 
 Example inputs and commands to regenerate the example dataset are in the example-dataset/ directory.
+
+## License
+
+This work is licensed under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International</a>
