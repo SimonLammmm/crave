@@ -89,3 +89,10 @@ legal_text <-
     tags$h1("Disclaimer"),
     tags$p("Lorem ipsum dolor sit amet consectetur adipiscing elit. Consectetur adipiscing elit quisque faucibus ex sapien vitae. Ex sapien vitae pellentesque sem placerat in id. Placerat in id cursus mi pretium tellus duis. Pretium tellus duis convallis tempus leo eu aenean."),
   )
+
+## Exorcise Docker platform — "linux/amd64" for an amd64 image on Apple Silicon; "" on native Linux
+exorcise_platform <- ""
+
+## Feature toggles (deployer opt-in; defaults off)
+enable_editing  <- FALSE   # Manage tab: edit metadata in-app (writes to dataset files)
+enable_analysis <- FALSE   # Run analysis tab: crispr_pipeline via Exorcise Docker
