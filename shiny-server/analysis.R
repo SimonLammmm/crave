@@ -124,6 +124,48 @@ analysis_run <- function(counts_src, counts_name, design_src) {
   list(ok = ok, console = console, workdir = workdir, expname = expname)
 }
 
+# Add an analysed experiment (from a completed analysis_run workdir) into an
+# existing dataset's database, using `crispr-screen-viewer database -u`.
+# Backs up the target database.db first. Returns list(ok, console).
+analysis_add_to_dataset <- function(workdir, expname, target_dir) {
+  target_dir <- normalizePath(target_dir, mustWork = FALSE)
+  results_dir <- file.path("output", expname)  # relative to workdir (mounted at /data)
+  
+  # Back up the existing database.db before writing
+  db <- file.path(target_dir, "database.db")
+  if (file.exists(db)) file.copy(db, paste0(db, ".bak"), overwrite = TRUE)
+  
+  platform <- get0("exorcise_platform", ifnotfound = "")
+  platflag <- if (nzchar(platform)) paste0(" --platform ", platform) else ""
+  
+  # Mount the analysis workdir at /work and the target dataset at /out.
+  # results-dir must be the parent 'output' dir; the tool finds the experiment
+  # subfolder inside it by name.
+  command <- paste0(
+    "docker run --rm", platflag,
+    " -v ", workdir, ":/work",
+    " -v ", target_dir, ":/out ",
+    exorcise_docker,
+    " crispr-screen-viewer database",
+    " --update-existing",
+    " --out-dir /out",
+    " --results-dir /work/output",
+    " --counts-dir /work",
+    " /work/design.xlsx",
+    " 2>&1"
+  )
+  
+  console <- tryCatch(
+    paste(system(command, intern = TRUE), collapse = "\n"),
+    error = function(e) paste("Failed to run docker:", conditionMessage(e))
+  )
+  # The tool logs "Commiting changes" / "Writing metadata tables" on success,
+  # and a Python Traceback on failure.
+  ok <- grepl("Commiting changes|Writing metadata", console) &&
+    !grepl("Traceback \\(most recent call last\\)", console)
+  list(ok = ok, console = console)
+}
+
 ## --- UI -----------------------------------------------------------------------
 
 analysisTab <- if (isTRUE(get0("enable_analysis", ifnotfound = FALSE))) {
@@ -199,7 +241,11 @@ analysisTab <- if (isTRUE(get0("enable_analysis", ifnotfound = FALSE))) {
       DTOutput("analysis_drugz"),
       tags$hr(),
       tags$h4("MAGeCK results"),
-      DTOutput("analysis_mageck")
+      DTOutput("analysis_mageck"),
+      tags$hr(),
+      tags$h4("Add to dataset"),
+      tags$p("After an analysis completes, add the experiment into an existing dataset's database. A backup of database.db is written first."),
+      uiOutput("add_to_dataset_ui")
     )
   )
 } else NULL
@@ -210,12 +256,16 @@ analysisServer <- function(input, output, session) {
   if (!isTRUE(get0("enable_analysis", ifnotfound = FALSE))) return(invisible())
   
   result_dir <- reactiveVal(NULL)
+  last_workdir <- reactiveVal(NULL)
+  last_expname <- reactiveVal(NULL)
   
   # Shared: given a completed analysis_run() result, populate tables + downloads.
   show_results <- function(res, console_out, downloads_out, download_id) {
     output[[console_out]] <- renderText(res$console)
     if (res$ok) {
       result_dir(file.path(res$workdir, "output", res$expname))
+      last_workdir(res$workdir)
+      last_expname(res$expname)
       tdir <- file.path(res$workdir, "output", res$expname, "tables")
       dz <- list.files(tdir, pattern = "drugz.*\\.csv$", full.names = TRUE)
       mg <- list.files(tdir, pattern = "mageck.*\\.csv$", full.names = TRUE)
@@ -358,4 +408,47 @@ analysisServer <- function(input, output, session) {
       utils::zip(zipfile = f, files = basename(rd), flags = "-r9X")
     }
   )
+  
+  ## --- Add to dataset (task 5 stage 1) ---
+  # Shown only once an analysis has completed in this session.
+  output$add_to_dataset_ui <- renderUI({
+    if (is.null(last_workdir())) {
+      return(tags$em("Run an analysis first, then you can add it to a dataset."))
+    }
+    tagList(
+      fluidRow(
+        column(6, selectInput("add_target_dataset", "Target dataset",
+                              choices = vapply(datasets, function(d) d$name, character(1)))),
+        column(6, tags$br(),
+               actionButton("add_to_dataset_go", "Add to dataset", icon = icon("database"), class = "btn-warning"))
+      ),
+      textOutput("add_to_dataset_status"),
+      tags$pre(style = "max-height: 250px; overflow-y: auto; font-size: 11px;",
+               textOutput("add_to_dataset_console"))
+    )
+  })
+  
+  observeEvent(input$add_to_dataset_go, {
+    req(last_workdir(), last_expname(), input$add_target_dataset)
+    # Resolve the chosen dataset's directory from config
+    entry <- Find(function(d) d$name == input$add_target_dataset, datasets)
+    if (is.null(entry)) {
+      output$add_to_dataset_status <- renderText("Target dataset not found in config.")
+      return()
+    }
+    target_dir <- path.expand(entry$path)
+    
+    output$add_to_dataset_status <- renderText(
+      paste0("Adding '", last_expname(), "' to ", input$add_target_dataset, "... (database.db backed up first)"))
+    
+    res <- analysis_add_to_dataset(last_workdir(), last_expname(), target_dir)
+    output$add_to_dataset_console <- renderText(res$console)
+    if (res$ok) {
+      output$add_to_dataset_status <- renderText(
+        paste0("Added '", last_expname(), "' to ", input$add_target_dataset,
+               ". Backup at database.db.bak. Use \"Refresh data\" to see it in CRAVE."))
+    } else {
+      output$add_to_dataset_status <- renderText("Add failed — see log below. Your database.db backup is intact.")
+    }
+  })
 }
