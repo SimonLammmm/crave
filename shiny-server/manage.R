@@ -31,6 +31,37 @@ manage_write <- function(exp_df, comp_df, exp_path, comp_path) {
   data.table::fwrite(comp_df, comp_path)
 }
 
+# Remove one or more experiments from a dataset's database.db via the Exorcise
+# image's `crispr-screen-viewer remove` subcommand. Backs up database.db first.
+# Returns list(ok, console).
+manage_remove_experiments <- function(dataset_dir, exp_ids) {
+  dataset_dir <- normalizePath(dataset_dir, mustWork = FALSE)
+  db <- file.path(dataset_dir, "database.db")
+  if (file.exists(db)) file.copy(db, paste0(db, ".bak"), overwrite = TRUE)
+  
+  if (!nzchar(get0("exorcise_docker", ifnotfound = ""))) {
+    return(list(ok = FALSE, console = "exorcise_docker is not set in config.R."))
+  }
+  platform <- get0("exorcise_platform", ifnotfound = "")
+  platflag <- if (nzchar(platform)) paste0(" --platform ", platform) else ""
+  
+  ids <- paste(shQuote(exp_ids), collapse = " ")
+  command <- paste0(
+    "docker run --rm", platflag,
+    " -v ", dataset_dir, ":/d ",
+    exorcise_docker,
+    " crispr-screen-viewer remove /d ", ids,
+    " 2>&1"
+  )
+  
+  console <- tryCatch(
+    paste(system(command, intern = TRUE), collapse = "\n"),
+    error = function(e) paste("Failed to run docker:", conditionMessage(e))
+  )
+  ok <- !grepl("Traceback \\(most recent call last\\)", console)
+  list(ok = ok, console = console)
+}
+
 # Validate one dataset's metadata against itself and against database.db
 # Returns an HTML tagList describing any problems found.
 manage_validate <- function(nm, exp_df, comp_df) {
@@ -112,7 +143,17 @@ manageTab <- if (isTRUE(get0("enable_editing", ifnotfound = FALSE))) {
       DTOutput("manage_experiments"),
       tags$hr(),
       tags$h4("Comparisons metadata"),
-      DTOutput("manage_comparisons")
+      DTOutput("manage_comparisons"),
+      tags$hr(),
+      tags$h4("Remove experiment"),
+      tags$p("Deletes an experiment's rows from the database (stat/comparison tables). A .bak backup of database.db is written first. This cannot be undone except by restoring the backup."),
+      fluidRow(
+        column(6, selectizeInput("remove_exp_ids", "Experiment ID(s) to remove", choices = NULL, multiple = TRUE)),
+        column(6, tags$br(), actionButton("remove_exp_go", "Remove experiment(s)", icon = icon("trash"), class = "btn-danger"))
+      ),
+      textOutput("remove_exp_status"),
+      tags$pre(style = "max-height: 200px; overflow-y: auto; font-size: 11px;",
+               textOutput("remove_exp_console"))
     )
   )
 } else NULL
@@ -155,7 +196,8 @@ manageServer <- function(input, output, session) {
     rv$exp_path <- d$exp_path; rv$comp_path <- d$comp_path
     output$manage_validation <- renderUI(NULL)
     output$manage_status <- renderText("")
-  }, ignoreInit = TRUE)
+    updateSelectizeInput(session, "remove_exp_ids", choices = sort(unique(d$exp[["Experiment ID"]])), server = TRUE)
+  }, ignoreInit = FALSE)
   
   # Persist cell edits into the in-memory copies (coerce the single edited cell)
   observeEvent(input$manage_experiments_cell_edit, {
@@ -189,6 +231,42 @@ manageServer <- function(input, output, session) {
         " and reloaded. Use \"Refresh data\" to update the other tabs. Backups written as *.csv.gz.bak."))
     } else {
       output$manage_status <- renderText(paste0("Save failed: ", res))
+    }
+  })
+  
+  ## --- Remove experiment (task 5 stage 3) ---
+  # Confirm before removing -- this modifies database.db permanently (backup aside).
+  observeEvent(input$remove_exp_go, {
+    req(input$remove_exp_ids)
+    showModal(modalDialog(
+      title = "Confirm removal",
+      paste0("Remove ", length(input$remove_exp_ids), " experiment(s) (",
+             paste(input$remove_exp_ids, collapse = ", "), ") from ",
+             input$manage_dataset, "? A backup of database.db will be written first, ",
+             "but this action modifies the live dataset."),
+      footer = tagList(
+        modalButton("Cancel"),
+        actionButton("remove_exp_confirm", "Remove", class = "btn-danger")
+      )
+    ))
+  })
+  
+  observeEvent(input$remove_exp_confirm, {
+    removeModal()
+    req(input$remove_exp_ids, input$manage_dataset)
+    dataset_dir <- manage_dataset_path(input$manage_dataset)
+    output$remove_exp_status <- renderText(paste0("Removing ", length(input$remove_exp_ids), " experiment(s)..."))
+    res <- manage_remove_experiments(dataset_dir, input$remove_exp_ids)
+    output$remove_exp_console <- renderText(res$console)
+    if (res$ok) {
+      output$remove_exp_status <- renderText(paste0(
+        "Removed ", paste(input$remove_exp_ids, collapse = ", "), " from ", input$manage_dataset,
+        ". Backup at database.db.bak. Use \"Refresh data\" to update the other tabs."))
+      # Refresh the experiment ID choices (removed ones should drop out on next dataset read)
+      d <- manage_read(input$manage_dataset)
+      updateSelectizeInput(session, "remove_exp_ids", choices = sort(unique(d$exp[["Experiment ID"]])), server = TRUE)
+    } else {
+      output$remove_exp_status <- renderText("Remove failed — see log below. database.db.bak has the pre-removal backup.")
     }
   })
 }
