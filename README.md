@@ -49,8 +49,7 @@ cd crave
 ```
 Copy the shiny-server/config.example.R file as shiny-server/config.R.
 ```
-
-cp shiny-server/config.example.R shiny-server/config.r
+cp shiny-server/config.example.R shiny-server/config.R
 ```
 Install dependencies found in the shiny-server/app.R script in the usual way for your system and then run Rshiny.
 ```
