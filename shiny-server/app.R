@@ -72,9 +72,11 @@
 # SL        4.23          2026-06-23    Intelligently enable/disable features that depend on ontology, library, guide library, and Exorcise available
 # SL        4.24          2026-06-23    Deprecate genetypes, never implemented
 # SL        4.25          2026-07-06    Basic config and dataset error checking
+# SL        4.26          2026-07-08    Fix Exorcise data and work directories with config.R
+# SL        4.27          2026-07-22    Add support for Exorcise 2.0.1
 
-ver <<- "4.25"
-updated <<- "2026-07-06"
+ver <<- "4.27"
+updated <<- "2026-07-22"
 
 #### Preamble ####
 

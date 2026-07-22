@@ -1,13 +1,10 @@
 run_exorcise <- function(input) {
   output <- NULL
   # File dictionaries
-  if(Sys.info()[1] == "Darwin") {
-    exorcise_prefix <- "~/bio/Projects/operation/exorcise/data/"
-    exorcise_temp <- "~/bio/Projects/operation/exorcise/data/"
-  } else {
-    exorcise_prefix <- "/opt/crispr/data/exorcise/data/" # host path, passed to exorcise image
-    exorcise_temp <- "/data/exorcise/data/" # container path
-  }
+  exorcise_prefix <- paste0(exorcise_hostroot, "/")
+  exorcise_temp <- paste0(exorcise_root, "/temp/")
+  dir.create(exorcise_temp, showWarnings = F, recursive = T)
+  
   exorcise_genomes <- c("GRCh38 Ensembl 111"    = "hg38.2020-09-22.2bit",
                         "GRCm39 Ensembl 111"    = "mm39.2020-07-30.2bit")
   exorcise_exomes <- c("GRCh38 Ensembl 111"     = "hsa.grch38.refseqall.tsv.gz",
@@ -72,9 +69,10 @@ run_exorcise <- function(input) {
     } else {
       opt$pam <-        "NGG"
     }
-    opt$genome <-       exorcise_genomes[input$exorcise_genome]
-    opt$exome <-        exorcise_exomes[input$exorcise_genome]
-    opt$priorities <-   exorcise_priorities[input$exorcise_genome]
+    opt$genome <-            exorcise_genomes[input$exorcise_genome]
+    opt$exome <-             exorcise_exomes[input$exorcise_genome]
+    opt$expression <-        NULL
+    opt$exprcutoff <-        NULL
     if(nchar(input$exorcise_mode_advanced) > 0) {
       opt$mode <- input$exorcise_mode_advanced
     } else {
@@ -83,15 +81,17 @@ run_exorcise <- function(input) {
     # Run Exorcise Docker
     # Build command
     exorcise_image <- exorcise_docker
-    command <- paste0("docker run --rm -v ", exorcise_prefix, ":/data/ ", exorcise_image, " exorcise",
-                      " -i /data/", opt$infile,
-                      " -o /data/", opt$outdir,
+    command <- paste0("docker run --rm -v ", exorcise_prefix, ":/data/ -v ", exorcise_prefix, "/temp/:/temp/ ", exorcise_image, " exorcise",
+                      " -i /temp/", opt$infile,
+                      " -o /temp/", opt$outdir,
                       " -z ", opt$pam,
                       " -q ", opt$mode,
                       " -g ", opt$seq,
-                      " -v ", opt$genome,
-                      " -w ", opt$exome,
-                      " -y ", opt$priorities)
+                      " -v /data/", opt$genome,
+                      " -w /data/", opt$exome)
+    if(!is.null(opt$expression) & !is.null(opt$exprcutoff)) {
+      command <- paste0(command, " -x /data/", opt$expression, " -k ", opt$exprcutoff)
+    }
     if(!is.null(opt$harm)) {
       command <- paste0(command, " -n ", opt$harm)
     }

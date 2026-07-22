@@ -32,11 +32,21 @@ datasets <- list(
 
 ## Exorcise location - should point to the directory containing .2bit files
 # This should be an absolute path. If using docker compose, this should
-# be the absolute path in the Docker container,  specified in docker-compose.yml
+# be the absolute path in the Docker container, specified in docker-compose.yml
+# For example, if your bind mount is "/opt/exorcise/:/data/exorcise/",
+# then this variable should be "/data/exorcise/"
 exorcise_root <- "/data/exorcise/"
+
+## Exorcise host location (docker/docker compose only)
+# If using docker/docker compose, this variable needs to be the absolute path
+# of the Exorcise location on the host. For example, if your bind mount is
+# "/opt/exorcise/:data/exorcise", then this variable should be "/opt/exorcise/"
+# If not using docker/docker compose, then this is the same as exorcise_root
+exorcise_hostroot <- exorcise_root
+
 ## Exorcise Docker image name - docker pull simonlammmm/exorcise
-# If using, obtain Exorcise by running docker pull simonlammmm/exorcise:latest
-# This variable should be simonlammmm/exorcise:latest unless you chose to pull a different tag
+# If using, obtain Exorcise by running `docker pull simonlammmm/exorcise:latest`
+# This variable should be simonlammmm/exorcise:latest unless you pulled a different tag
 exorcise_docker <- "simonlammmm/exorcise:latest"
 
 ## Look and feel
