@@ -143,7 +143,7 @@ load <- function() {
   canLibraries <<- ifelse(exists("file_libraries"), T, F)
   canOntology <<- ifelse(nrow(ontology) > 0, T, F)
   if(length(exorcise_root > 0) & length(exorcise_docker) > 0) {
-    if(system(paste0("docker run --rm ", exorcise_docker, " exorcise --help"), ignore.stderr = T, ignore.stdout = T) == 0) {
+    if(system(paste0("docker images | grep -E '", sub("^(.+):(.+)$", "\\1", exorcise_docker), "\\s*", sub("^(.+):(.+)$", "\\2", exorcise_docker), "'")) == 0) {
       canExorcise <<- T
     } else {
       canExorcise <<- F
