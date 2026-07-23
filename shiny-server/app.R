@@ -74,9 +74,10 @@
 # SL        4.25          2026-07-06    Basic config and dataset error checking
 # SL        4.26          2026-07-08    Fix Exorcise data and work directories with config.R
 # SL        4.27          2026-07-22    Add support for Exorcise 2.0.1
+# SL        4.27.1        2026-07-23    Speed up check for specified Exorcise installation
 
-ver <<- "4.27"
-updated <<- "2026-07-22"
+ver <<- "4.27.1"
+updated <<- "2026-07-23"
 
 #### Preamble ####
 
