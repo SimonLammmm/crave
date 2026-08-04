@@ -46,7 +46,8 @@ plotEnrichment <- function(input) {
                m = length(unique(alldata$gene[alldata$class == class & alldata$screen == screen])),
                n = length(unique(alldata$gene[alldata$screen == screen])) - m,
                k = length(unique(cutoffdata$gene[cutoffdata$screen == screen])),
-               phyper = phyper(x, m, n, k, input$enrichment_cutoff_tail == "Lower tail (depleted classes)"))
+               phyper = phyper(x-!(input$enrichment_cutoff_tail == "Lower tail (depleted classes)"), m, n, k,
+                               lower.tail = input$enrichment_cutoff_tail == "Lower tail (depleted classes)"))
         }
       }
       hypers = hypers %>% 

@@ -75,9 +75,10 @@
 # SL        4.26          2026-07-08    Fix Exorcise data and work directories with config.R
 # SL        4.27          2026-07-22    Add support for Exorcise 2.0.1
 # SL        4.27.1        2026-07-23    Speed up check for specified Exorcise installation
+# SL        4.27.2        2026-08-04    Fix inequality in computing upper-tail hypergeometric p-value
 
-ver <<- "4.27.1"
-updated <<- "2026-07-23"
+ver <<- "4.27.2"
+updated <<- "2026-08-04"
 
 #### Preamble ####
 
