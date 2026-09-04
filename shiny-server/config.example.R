@@ -1,6 +1,8 @@
 #### CRAVE deployment config ####
-## This is your local working config (dev/Mac paths). Keep it out of git.
-## For the public repo, copy to config.example.R with /data/... paths.
+## Copy this file to config.R and edit it. Every setting below is optional except
+## `datasets`; anything you leave out falls back to the default shown in the
+## comment. CRAVE validates this file at start-up and, if something is wrong,
+## serves a page explaining what rather than failing silently.
 
 ## Datasets — one entry per database directory
 # `name` is the display name in CRAVE.
@@ -87,8 +89,33 @@ notices_info <- NULL
 notices_warning <- NULL
 notices_emergency <- NULL
 
+## Server options
+# Largest file a user may upload, in megabytes (Exorcise and Save/Load use this)
+max_upload_mb <- 100
+
+# Host and port are deliberately NOT set here. Whoever launches the app owns them:
+# RStudio's "Run App" chooses a port and expects the app to use it, and
+# shiny-server and ShinyProxy assign one and pass it in. Docker passes them in its
+# CMD. If you need to pin them for a bare Rscript deployment, do it at the call
+# site instead:
+#   Rscript -e "shiny::runApp('shiny-server', host = '0.0.0.0', port = 3838)"
+
+## Performance
+# On first start CRAVE adds two indexes to each dataset's `stat` table, which turn
+# the gene-led queries behind Correlate and Pendragonator from full table scans
+# into index lookups. Building them sorts the whole table, so on a very large
+# dataset the first start takes several minutes; every start after that is fast.
+# Set FALSE to skip it (queries will be slower), or leave TRUE and let it run once.
+# Ignored anyway if the dataset directory is read-only.
+create_indexes <- TRUE
+
+## Diagnostics
+# Log every input change. Installs an observer per input and writes a line on
+# every keystroke, so keep it FALSE unless you are debugging.
+enable_input_logging <- FALSE
+
 ## Legal text
-legal_text <- 
+legal_text <-
   tags$div(
     tags$h1("Privacy policy"),
     tags$p("Lorem ipsum dolor sit amet consectetur adipiscing elit. Consectetur adipiscing elit quisque faucibus ex sapien vitae. Ex sapien vitae pellentesque sem placerat in id. Placerat in id cursus mi pretium tellus duis. Pretium tellus duis convallis tempus leo eu aenean."),
