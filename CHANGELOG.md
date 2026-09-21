@@ -1,5 +1,54 @@
 # Changelog
 
+## 5.1.4 — 2026-09-21
+
+- **Added `build-and-push.sh`.** Builds, tags, pushes and optionally saves the
+  image. `linux/amd64` only: CRAVE is served over HTTP from a server and nothing
+  it depends on is architecture-sensitive, unlike Exorcise, which needs a
+  multi-architecture manifest because BLAT and twoBitToFa are compiled binaries
+  and its users run it on Apple silicon. Building one architecture keeps this to
+  minutes instead of the hours QEMU would take. The script reads the version
+  from `01_constants.R` rather than holding its own copy, so the image tag
+  cannot disagree with what the running app reports.
+
+- **Added `.dockerignore`.** The Dockerfile copies `shiny-server/` wholesale, so
+  anything sitting in that directory at build time goes into the image. No
+  released version has shipped a `config.R` — there is none in 5.1.2 — but a
+  working tree acquires one as soon as you configure a local instance to test
+  against, and building from that tree would bake it in. An image carrying one
+  is also worse than an image without: `09_config.R` explains what to do when
+  the file is missing, whereas a stale baked copy makes a container started
+  without the bind mount come up quietly wrong.
+
+  The example dataset, the images directory and assorted development leftovers
+  are excluded too, which keeps the build context to the source rather than the
+  8 MB the repository currently holds.
+
+- **Version references brought back into line.** `01_constants.R` said 5.1.3
+  while `docker-compose.yml` still pulled 5.1.2, and `app.R` and `README.md`
+  both pointed at the 5.1.2 notes. The compose file now tracks the release and
+  the two prose references no longer name a version, so they cannot go stale
+  again.
+
+## 5.1.3 — 2026-09-09
+
+Reconstructed from the diff against 5.1.2; this release originally shipped
+without an entry.
+
+- **Fixed: selecting comparisons silently did nothing for most screens.** The
+  "Selected comparisons" picker is created with `server = TRUE`, so the browser
+  only holds the options it has been sent — the first
+  `CRAVE_MAX_SELECTIZE_SERVER` at start-up, plus whatever a later search
+  fetched. selectize cannot resolve a value whose option it has never seen and
+  clears the control instead, so `updateSelectizeInput(selected = ...)` worked
+  for screens near the top of the list and failed silently for everything
+  below. Every write now goes through `setContrasts()`, which resends the
+  choices alongside the selection. This affected selecting rows in the
+  comparisons table, Select all from a search, and both Clear buttons.
+
+- The remaining hardcoded `maxOptions = 1000` was replaced with
+  `CRAVE_MAX_SELECTIZE_SERVER`, which is what every other picker already used.
+
 ## 5.1.2 — 2026-08-18
 
 - **Fixed: the Reduce `Others` column was empty for every gene.** `summarise()`

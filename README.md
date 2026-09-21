@@ -137,4 +137,4 @@ It is not an R parser: it strips comments and string literals and works on the t
 that remains. It cannot see type errors or anything that depends on runtime values,
 and the advisory sections have known false positives, described in their output.
 
-See CHANGELOG.md for what changed in 5.1.2.
+See CHANGELOG.md for what changed in this release.

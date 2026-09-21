@@ -18,7 +18,7 @@
 #   10..18                   Shiny modules
 #   19_ui.R, 20_server.R     assembly
 #
-# See CHANGELOG.md for what changed in 5.1.2.
+# See CHANGELOG.md for what changed in this release.
 
 #### 1. Load the codebase, exactly once ####
 # Shiny (>= 1.5.0) sources every .R file in an app directory's R/ subdirectory
