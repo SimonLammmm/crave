@@ -1,7 +1,7 @@
 #### Version ####
 # See CHANGELOG.md for the full history.
-CRAVE_VERSION <- "5.1.2"
-CRAVE_UPDATED <- "2026-08-18"
+CRAVE_VERSION <- "5.1.4"
+CRAVE_UPDATED <- "2026-09-21"
 
 # Retained for backwards compatibility with any deployer customisations that
 # referenced these names directly.

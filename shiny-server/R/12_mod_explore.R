@@ -293,13 +293,30 @@ exploreServer <- function(id, data, bus) {
       }
     }
 
+    #' Write a selection into the "Selected comparisons" picker.
+    #'
+    #' The picker is created with server = TRUE, so the browser holds only the
+    #' options it has been sent: the first CRAVE_MAX_SELECTIZE_SERVER of them at
+    #' start-up, plus whatever a later search fetched. selectize cannot resolve a
+    #' value whose option it has never seen and clears the control instead, so
+    #' `updateSelectizeInput(selected = ...)` on its own silently works for screens
+    #' near the top of the list and silently fails for the rest. Every write goes
+    #' through here, and every write resends the choices with the selection.
+    setContrasts <- function(selected) {
+      updateSelectizeInput(
+        session, "contrasts", server = TRUE,
+        choices = data()$choices$FriendlyID, selected = selected,
+        options = list(maxOptions = CRAVE_MAX_SELECTIZE_SERVER)
+      )
+    }
+
     #### Initialisation, also re-run when the data are refreshed ####
     observeEvent(data(), {
       d <- data()
       availableGenes(d$genes)
       updateSelectizeInput(session, "contrasts", server = TRUE,
                            choices = d$choices$FriendlyID,
-                           options = list(maxOptions = 1000))
+                           options = list(maxOptions = CRAVE_MAX_SELECTIZE_SERVER))
       updateSelectizeInput(session, "genes", server = TRUE, choices = d$genes,
                            options = list(maxOptions = CRAVE_MAX_SELECTIZE_SERVER))
       resetSearchForm(d$comparisons)
@@ -392,11 +409,11 @@ exploreServer <- function(id, data, bus) {
     observeEvent(input$comparisons_all,  selectRows(comparisonsProxy, input$comparisons_table_rows_all))
     observeEvent(input$comparisons_none, {
       selectRows(comparisonsProxy, NULL)
-      updateSelectizeInput(session, "contrasts", selected = character(0))
+      setContrasts(character(0))
     })
     observeEvent(input$contrasts_clear, {
       selectRows(comparisonsProxy, NULL)
-      updateSelectizeInput(session, "contrasts", selected = character(0))
+      setContrasts(character(0))
     })
 
     # Table selection -> selectize. The one-shot `syncing` flag stops the two
@@ -406,7 +423,7 @@ exploreServer <- function(id, data, bus) {
       picked <- scopedComparisons()$FriendlyID[input$comparisons_table_rows_selected]
       if (setequal(picked, input$contrasts %||% character(0))) return()
       syncing(TRUE)
-      updateSelectizeInput(session, "contrasts", selected = picked)
+      setContrasts(picked)
     })
 
     # selectize -> table, plus the per-analysis screen pickers.
@@ -561,8 +578,7 @@ exploreServer <- function(id, data, bus) {
           "Won't select ", length(found), " comparisons. Please refine your search."))
         return()
       }
-      updateSelectizeInput(session, "contrasts",
-                           selected = unique(c(input$contrasts, found)))
+      setContrasts(unique(c(input$contrasts, found)))
     })
 
     #### Analyses ####
