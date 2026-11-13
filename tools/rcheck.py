@@ -210,12 +210,16 @@ colnames dimnames cbind rbind matrix array apply sweep scale
 head tail intersect setdiff union setequal anyNA complete.cases
 data.frame factor levels nlevels droplevels split unsplit table tabulate
 file.exists file.path file.info file.access file.remove file.copy dir.exists
-dir.create basename dirname normalizePath list.files
+dir.create basename dirname normalizePath list.files list.dirs file.size setwd
 readRDS saveRDS readLines writeLines Sys.glob Sys.time Sys.Date Sys.setenv Sys.which
-Sys.getenv Sys.getpid system system2 shQuote unlink tempdir tempfile
+Sys.getenv Sys.getpid Sys.chmod Sys.sleep system system2 shQuote unlink tempdir tempfile
+cat startsWith endsWith trimws
+cos sin eigen diff max.col tcrossprod crossprod outer
 new.env get get0 exists ls assign rm local on.exit sys.source source library
-require requireNamespace loadNamespace attr attributes structure unname
+file gzfile close readBin writeBin as.raw rawToChar readLines writeLines
+require requireNamespace loadNamespace asNamespace attr attributes structure unname
 suppressWarnings suppressMessages suppressPackageStartupMessages invisible force
+withCallingHandlers invokeRestart
 missing nargs all any ifelse stopifnot Vectorize
 options getOption conditionMessage conditionCall simpleError simpleWarning
 system.file packageVersion R.home nchar merge reshape aggregate by
@@ -251,11 +255,13 @@ selectizeInput selectInput sliderInput dateInput
 updateTextInput updateTextAreaInput updateNumericInput updateCheckboxInput
 updateCheckboxGroupInput updateRadioButtons updateSelectizeInput updateSelectInput
 updateSliderInput updateSliderTextInput updateTabsetPanel updateNavbarPage
+geom_polygon theme_void guides
 uiOutput renderUI textOutput renderText plotOutput renderPlot verbatimTextOutput
 renderPrint tableOutput renderTable
 reactive reactiveVal reactiveValues reactiveValuesToList observe observeEvent
 eventReactive isolate req validate need bindCache bindEvent
 debounce throttle moduleServer NS showModal modalDialog modalButton removeModal
+invalidateLater
 showNotification removeNotification withProgress incProgress setProgress Progress
 outputOptions onStop onSessionEnded onFlush getDefaultReactiveDomain session
 shinytheme busy_start_up spin_epic add_busy_bar add_busy_spinner
@@ -332,7 +338,7 @@ def check_module_ids(root, files, raws) -> None:
     print("here. Sub-module ids passed to plotPanelUI or customiseUI look 'unread'.")
 
     mod_files = [(f, rel) for f, rel in files
-                 if re.search(r"R/1[0-8]_mod_", rel.replace(os.sep, "/"))]
+                 if re.search(r"R/\d\d_mod_", rel.replace(os.sep, "/"))]
     for f, rel in mod_files:
         code = strip_comments(raws[f])
         ui_ids = set(re.findall(r"\bns\(\s*\"([^\"]+)\"\s*\)", code))

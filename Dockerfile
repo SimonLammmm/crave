@@ -41,7 +41,7 @@ RUN R -q -e "options(warn = 2); install.packages(c(\
 # CRAVE_PKGS_LAZY
 RUN R -q -e "options(warn = 2); install.packages(c(\
       'cluster', 'ggdendro', 'igraph', 'umap', 'Rtsne', 'mice', \
-      'ggVennDiagram', 'ggupset', 'DescTools'), \
+      'ggVennDiagram', 'ggupset', 'DescTools', 'readxl'), \
       repos = '${CRAN}')"
 
 # CRAVE_PKGS_INSTALLED_ONLY

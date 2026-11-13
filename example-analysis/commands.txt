@@ -1,0 +1,45 @@
+#### Example simonlammmm/exorcise commands to generate a CRAVE dataset
+#
+# Requires a counts matrix tsv:
+# - first column guide IDs, can be anything as long as they are unique
+# - second column gene symbols, will be displayed on CRAVE
+#
+# Requires an experimental design xlsx:
+# - experiment metadata in the Experiment details sheet
+# - sample metadata and replicate/condition mappings in the Sample details sheet
+# - contrasts metadata and condition/contrasts and contrasts/groups mappings in the Control groups sheet
+# - analysis method selection for each group
+#
+# An example counts matrix and experimental design are provided: a published
+# olaparib screen, downsampled. The commands below turn them into a CRAVE
+# dataset, assuming your cwd is this directory. Each runs in less than a minute.
+#
+# Everything they write is already here, so the whole worked example can be read
+# without running anything: results/ holds what exorcise-analyse produced, and
+# data/ the CRAVE dataset exorcise-database built from it. Re-running the
+# commands overwrites both -- that is what the -f below is for, since -n asks
+# before it replaces an existing database and `docker run` without -it has no
+# stdin to answer with.
+#
+# NB this is not the dataset CRAVE ships. That one is ../example-dataset/data/,
+# a subset of DDRcs built by build-example-dataset.R beside it, and it is what
+# docker-compose.yml mounts. This folder is the worked example of building a
+# dataset from a screen of your own, which is what the Submit tab does from
+# inside the app.
+#
+
+EXORCISE_IMAGE=simonlammmm/exorcise:3.1.9
+docker pull $EXORCISE_IMAGE
+
+#### Run batch MAGeCK/DrugZ/Chronos analysis
+docker run --rm -v $(pwd):/data $EXORCISE_IMAGE exorcise-analyse \
+  --counts ./ \
+  --output-dir results/ \
+  example.xlsx
+
+#### Generate CRAVE dataset
+docker run --rm -v $(pwd):/data $EXORCISE_IMAGE exorcise-database -n -f \
+  --out-dir ./data/ \
+  --results-dir results/ \
+  --counts-dir ./ \
+  example.xlsx

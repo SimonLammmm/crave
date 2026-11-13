@@ -16,7 +16,11 @@
 #   08_analysis_exorcise.R   Exorcise
 #   09_config.R              config.R loading and validation
 #   10..18                   Shiny modules
-#   19_ui.R, 20_server.R     assembly
+#   21_pipeline.R            driving Exorcise to change a dataset on disk
+#   22_mod_submit.R          Submit
+#   23_mod_manage.R          Manage
+#   24_communities.R         community detection for the Network tab
+#   29_ui.R, 30_server.R     assembly
 #
 # See CHANGELOG.md for what changed in this release.
 
@@ -54,7 +58,8 @@ if (length(loaded$errors) == 0) {
   stage(paste0("Loading ", length(config$datasets), " dataset(s) ..."))
   craveData <- loadCraveData(
     config$datasets, config$exorcise_root, config$exorcise_docker,
-    create_indexes = isTRUE(config$create_indexes)
+    create_indexes = isTRUE(config$create_indexes),
+    config = config
   )
 }
 

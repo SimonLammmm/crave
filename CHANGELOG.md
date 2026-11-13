@@ -1,5 +1,392 @@
 # Changelog
 
+## 6.0.1 — 2026-11-13
+
+### Fixed
+
+- **A comparison search field could only ever hold one value.** On the Explore
+  tab, under Select comparison, picking a treatment, a cell line or any other
+  search field left that field offering nothing but the value just picked, so a
+  second could not be added and the OR the form implies was unreachable. The
+  filtering was right all along — several values in one field have always been
+  an OR — but each field's list of choices was rebuilt from the comparisons the
+  whole form had already narrowed to, which for the field doing the narrowing is
+  exactly the values picked in it.
+- Each field's choices are now drawn with **that field's own filter lifted**: it
+  offers everything still reachable once the other fields have had their say, so
+  Camptothecin and Carboplatin can sit in Treatment (diff) together and the
+  table shows the comparisons matching either. The other fields still narrow as
+  they did, which is what keeps the form from offering combinations that match
+  nothing.
+- Values already picked stay in their field's list even when the rest of the
+  form leaves them unreachable. selectize drops a selection that is not among
+  the choices, so without this an over-narrow search would quietly rewrite
+  itself instead of being there to undo.
+
+### The ROC tab now measures what it says it measures
+
+- **The false positive rate was divided by every gene in the query screen
+  instead of by the non-hits.** The x axis therefore never reached 1, and the
+  anchor point the curve was given at (1, 1) turned the gap into area: the
+  reported AUC was roughly `(N/k)·AUC + P/k`. On a 221-gene worked example the
+  tab read 0.762 and 0.804 where the answer is 0.665 and 0.662.
+- **The direction and the cutoff were applied to the query screens as well as
+  to the reference.** They now define the hits and nothing else. Every gene a
+  query screen measured is swept, whichever way it scored, because a gene the
+  reference depleted and the query screen enriched is a hit that screen failed
+  to recover, not a gene to leave out of the arithmetic. Under the old filter
+  20 of 60 positives disappeared from one example screen and 21 from the other,
+  and a rescaling of the recall axis then drew the curve all the way to 1 as
+  though nothing were missing.
+- **Reference hits absent from a query screen are now counted and said out
+  loud.** The legend reads "40 of 60 hits present" when a screen cannot reach
+  them all, and a screen sharing no hits at all with the reference is named
+  rather than silently given an AUC of 0.001.
+- **Rank selected the weakest genes.** The ROC tab ranked by `rank(abs(score))`
+  — rank 1 being the smallest magnitude — and pooled the query screens into one
+  ranking, so a threshold meant a different thing in each. Hits are now chosen
+  the way the Overlap tab chooses them, and query screens are ranked within
+  themselves.
+- **Ties, and the sweep itself.** The sweep ran over a fixed grid of 2,000
+  thresholds and was integrated by `DescTools::AUC()`, which averages y wherever
+  two points share an x and warns that it is doing so; the warning was
+  suppressed. The sweep now steps from one distinct statistic to the next, tied
+  genes crossing as a block, and is integrated directly. The result is the
+  Mann-Whitney AUC with average ranks, to every digit.
+- **The table under the plot is the sweep, gene by gene**, in the order the
+  genes were reached, flagging which ones were reference hits and carrying the
+  recall and false positive rate at each step. The old table held the curve's
+  coordinates, which say nothing a reader can act on; this one names the genes
+  recovered, and the trapezoid down its two rate columns is the AUC on the
+  plot.
+
+### A broader Correlate example, and a dataset it can show off on
+
+- The Example button fills the form with **200 genes** rather than a handful,
+  and selects five DNA-damaging agents at once — olaparib, talazoparib,
+  cisplatin, etoposide and camptothecin — rather than one, since several values
+  in one field are an OR. It sets a Score cutoff of 3, and it turns on the
+  free-text filter with a regular expression that leaves out screen variants
+  and alternative-library runs, which an underscore in a screen's name marks.
+- Every Correlate tab now draws something from it. Two of them needed a tab
+  control the example had no say over, so it now sets those too and Reset puts
+  them back: the Network tab's similarity, because how many edges a threshold
+  admits depends on how many screens are being correlated and the 0.7 default
+  draws a hairball over few screens; and the Enrichment tab's cutoff, because
+  at |normZ| >= 3 a handful of screens give too few hits for homologous
+  recombination under a PARP inhibitor to survive multiple testing.
+
+### A bigger example dataset
+
+- **The dataset that ships with CRAVE is now thirty comparisons rather than
+  two**, and carries an ontology. It is a subset of DDRcs: fifteen published
+  experiments over twelve cell lines and eight libraries, with MAGeCK, DrugZ
+  and — for the six essentialomes — Chronos scores for 1,500 genes, and 220
+  ontology rows over nine DNA repair classes. Two comparisons could not
+  demonstrate Adjacency, Network, Reduce or Enrichment at all; these can.
+- `example-dataset/build-example-dataset.R` rebuilds it from any CRAVE dataset
+  and documents what it selects and why. README has the summary.
+- **The Exorcise worked example has moved to `example-analysis/`**, where it is
+  no longer mixed up with the dataset CRAVE ships. The counts matrix, workbook
+  and `commands.txt` are joined there by what they produce — the analysis
+  results and the CRAVE dataset built from them — so every stage can be read
+  without running anything. The commands themselves are now Exorcise 3.1.9's
+  `exorcise-analyse` and `exorcise-database`, in place of 1.6's
+  `crispr_pipeline` and `crispr-screen-viewer database`. The whole folder is in
+  `.dockerignore`: it is a worked example, not something the image needs.
+
+## 6.0.0 — 2026-10-08
+
+Two new tabs write to a dataset rather than reading it, three parts of CRAVE can
+now be withheld by configuration, the Network tab can find communities, and two
+Correlate tabs are renamed — labels, module ids and all, which is the one breaking
+change here and is described below. Major, because a CRAVE that can change its own data is
+a different thing to deploy than one that cannot: the new tabs are off by default,
+and the notes below on who may reach them are the reason.
+
+### Community detection, on the Network tab
+
+**The Network tab can group the genes it draws and ring each group.** A
+"Community detection" dropdown offers Agnes under each of its six linkages,
+Clara, k-means, non-negative matrix factorisation, a Gaussian mixture model,
+Louvain and Leiden. "Off" is the default and leaves the tab exactly as it was: a
+visNetwork to drag about, and an adjacency list of pairs.
+
+- **The similarity and the distance are separate choices**, because they answer
+  separate questions. The similarity measure — Spearman, Pearson, Kendall or
+  cosine, all four supported — decides which genes are joined by an edge. The
+  distance measure — euclidean, manhattan or jaccard — decides which genes are
+  near each other for the purpose of grouping, as it already does for the
+  dendrograms. A network of Spearman edges can therefore be grouped by jaccard
+  distance.
+- **Every method but the two graph ones honours the distance**, though not all of
+  them can take one: Agnes and Clara are given it directly, k-means and the
+  mixture model are given a classical MDS embedding of it, and the factorisation
+  is given the affinity `1 - d/max(d)`. Each is said in the method's own comment
+  rather than left to be discovered.
+- **Louvain and Leiden group the network itself.** They are given the edges the
+  tab draws, weighted by the absolute similarity exactly as the layout already
+  weights them, and maximise modularity over that graph — so the similarity
+  measure and the cutoff decide the communities by themselves, and no distance
+  reaches them. They also find their own number of communities, so they take a
+  **resolution** (default 1, above it for more and smaller communities, below it
+  for fewer and larger) where the others take a k, and the diagram reports how
+  many they found. Leiden is run against modularity rather than its own default
+  constant Potts model, which reads the resolution as an absolute edge density and
+  would return every gene as its own community at the default; under modularity
+  the resolution means for Leiden what it means for Louvain, so the two can be
+  compared. Both are seeded, so the same selection gives the same communities.
+- **The controls shown follow the method.** k and the distance appear for the
+  methods that take them, the resolution for Louvain and Leiden, and the
+  membership threshold for the two probabilistic fits — rather than all of them
+  appearing as soon as a method is chosen, because an inert control beside a
+  dropdown invites the reading that it does something.
+- **k** is asked for by every method that needs one — Agnes needs it to cut its
+  tree, the factorisation as its rank, the mixture as its number of components. It
+  is refused outside `2 <= k < genes`, with the bound in the message. The
+  resolution is refused outside `0.05` to `10` the same way.
+- **A resolution that leaves every gene alone is refused rather than drawn.** It
+  is a valid partition and a useless picture, and on a network whose edges are all
+  of similar weight it arrives abruptly; the message says which resolution did it
+  and what to change.
+- **A distance method and a graph method can disagree on the same selection**, and
+  neither is wrong. The first groups genes whose scores are alike across the
+  screens; the second groups genes the drawn network ties together, so genes that
+  share a profile but produce few surviving edges are one community to Agnes and
+  several to Louvain. Only the second is describing the picture on screen.
+- **The factorisation and the mixture model are probabilistic.** Each gives every
+  gene a membership in every community, so a gene can belong to two and the
+  ellipses overlap. **Least community membership to be ringed** (default 0.7)
+  decides how much of a gene must sit in a community for its ellipse to enclose
+  it; the control appears only for those two methods, because for the others it
+  could do nothing.
+- **The adjacency list** keeps both triangles, as it already did — one row per
+  ordered pair — and gains the community of each end, plus the membership of each
+  end as a probability under a probabilistic method.
+- **The diagram** is the same graph, laid out by Fruchterman-Reingold, with each
+  community ringed by a 95% ellipse and each gene coloured by the community it
+  sits most in. It is drawn through ggplot and plotly rather than visNetwork,
+  which has no way to draw a region around a set of nodes; the trade is that the
+  picture is no longer dragged about with the mouse, and hovering still names the
+  gene, its community and its membership. With community detection off, the
+  visNetwork is untouched.
+- Communities are detected over the genes the network actually draws, not every
+  gene in the score matrix: a community containing genes the network does not show
+  could not be ringed, and would describe a different picture to the one on
+  screen.
+- The mixture model is fitted with diagonal covariances in at most ten dimensions,
+  and its variances are floored. A full covariance per community over every screen
+  in a selection has more parameters than a gene set has genes, and an
+  unconstrained EM run ends by collapsing a component onto two identical genes
+  rather than by finding a cluster.
+- Every randomised step — both soft fits, the k-means start, the two graph sweeps
+  and the layout — is seeded through `withSeed()`, so the same selection draws the
+  same communities and the global random stream is left as it was found.
+
+### Jaccard distance
+
+- **Jaccard is now offered on the Heatmap and Adjacency tabs too**, alongside
+  euclidean and manhattan. `agnes()` implements only the other two, so it is now
+  handed a dissimilarity matrix rather than the data and a metric name — for
+  euclidean and manhattan that is the same calculation it was doing itself, which
+  is checked against `stats::dist()`.
+- What jaccard means here is its continuous generalisation, the Tanimoto
+  coefficient, so that it is defined on signed CRISPR scores; on binary values it
+  reduces to the familiar ratio of set sizes, which is tested. `clara()`
+  implements its own jaccard in C and is given the metric by name, so Clara's
+  jaccard is cluster's and every other method's is CRAVE's.
+### Breaking: Clustergram is now Heatmap, and Heatmap is now Adjacency
+
+Renamed all the way down, not just on the tab. Leaving the old ids in place would
+have meant `heatmap` naming the Adjacency tab while a tab labelled Heatmap sat
+next to it under a different name — a double meaning that costs every future
+reader of this module a detour, in exchange for a saved-key format that is
+largely unused.
+
+| | was | is |
+|---|---|---|
+| tab label | Clustergram | Heatmap |
+| tab label | Heatmap | Adjacency |
+| module id | `clustergram` | `heatmap` |
+| module id | `heatmap` | `adjacency` |
+| input ids | `cg_*` | `hm_*` |
+| input ids | `hm_*` | `adj_*` |
+| function | `runClustergram()` | `runHeatmap()` |
+| function | `runHeatmap()` | `runAdjacency()` |
+
+**What this does to a session key saved by 5.1.5 or earlier.** It still loads, and
+everything outside those two tabs is restored as before: `restoreInputs()` matches
+on id, so ids it no longer knows are skipped. The two tabs' clustering controls —
+nine inputs — come back at their defaults instead of their saved values.
+
+One case needed code rather than a note. An old key's `hm_dendro`, `hm_dist` and
+`hm_k` described the tab now called Adjacency, and those are exactly the ids the
+Heatmap tab uses now. Restoring them would have been worse than skipping them: the
+values are valid for the control they would land on, so a user's old Adjacency
+settings would silently reappear on a different tab. A key from that era is
+recognisable by its `cg_*` ids, so the Correlate module drops those three when it
+sees them, and says so in the log. No key is rejected, and nothing is restored
+into the wrong tab.
+
+Deployers who set `defaults_correlate_customise_heatmap_*` in config.R are
+unaffected: those names are unchanged, because they are the colours of both tiled
+plots rather than of either tab. Their labels in the Customise dialog now say so.
+
+### Submit
+
+**Upload a counts matrix and an experimental design workbook, run the analyses the
+workbook asks for, and add the results to a dataset.** The work is Exorcise's:
+`exorcise-analyse` runs MAGeCK, DrugZ and Chronos — whichever the Analyses sheet
+names, which is what "where appropriate" comes to — and `exorcise-database` puts
+the results and the metadata describing them into the dataset directory. CRAVE
+contributes the form, the checks in front of it, and the job that sequences the
+two.
+
+- The workbook is read as soon as it is uploaded and what CRAVE understood is
+  shown back: the experiment id, the methods, the control groups, the counts file
+  the workbook names, and whether that experiment is already in the dataset.
+  Refusing a wrong file takes a second, rather than a container start and a
+  confusing log.
+- The counts matrix is saved under the name the workbook declares, not the name it
+  was uploaded with. `exorcise-analyse` resolves counts by the declared name
+  inside `--counts-dir`, so a file saved under any other name is simply not found.
+- **The one adjustment to that name is compression**, because Exorcise decides
+  whether to decompress from the extension and `maybe_its_gz()` will reach for a
+  `.gz` the workbook did not mention but never strips one. So a gzipped upload
+  declared as `.tsv` is saved as `.tsv.gz` and found by that fallback, and a plain
+  upload declared as `.tsv.gz` is compressed on the way in, since nothing would
+  look for it uncompressed. Compression is read from the file's first two bytes,
+  not from what the browser called it. Without this a gzipped upload was stored
+  under a `.tsv` name and Exorcise stopped at validation with
+  `UnicodeDecodeError: 'utf-8' codec can't decode byte 0x8b`; uploading the
+  uncompressed matrix was the only way through.
+- The counterpart name is removed when the matrix is staged, so a file left by an
+  earlier submission cannot be resolved ahead of the one just uploaded — which is
+  what otherwise makes a resubmission fail the same way as the first attempt.
+- A workbook that sets "Analysis version" is refused, with the reason:
+  `exorcise-analyse` then files its tables under
+  `results/<experiment>/<version>/`, which is not where `exorcise-database` looks,
+  and the experiment would be added with no statistics in it.
+- Analyses run detached, through a shell script, and the panel polls a log. A
+  Chronos run is minutes to hours and R is single threaded: waiting on it inside
+  an observer would freeze every session connected to the app, not just the one
+  that pressed the button. Closing the browser does not stop a job, and reopening
+  the tab picks it back up.
+- **The raw analysis output can be downloaded**, as a `.tar.gz` of everything
+  MAGeCK, DrugZ and Chronos themselves wrote for one experiment — the method
+  directories `exorcise-analyse` files them under — which unpacks as
+  `<experiment>/<method>/…`. The sgRNA summaries, the per-comparison files and
+  Chronos's model output are otherwise unreachable once the container has exited.
+- **The tabulated tables are not in it.** They are what the dataset is built
+  from, and so behind every plot and every "Download data" elsewhere in CRAVE;
+  putting them in the archive would hand back the same numbers a second time
+  under a different name.
+- The picker lists the experiments in the dataset that have raw output, not every
+  experiment: one analysed only as a manual table computed nothing and has none.
+  It is read from the directory rather than from the metadata, which is also what
+  keeps an experiment id typed into a workbook from being used to build a path.
+  The experiment just submitted is the one offered, and the list refreshes when a
+  job stops — whether it succeeded or not, since a failed run can still have left
+  behind the output worth looking at.
+- The archive is built with R's own tar, so it needs no `tar` binary in the
+  image, and the size it will be before compression is shown next to the button.
+
+### Manage
+
+**What a dataset holds, and the three ways it may be changed.** Relabel its
+metadata, rebuild an experiment from a corrected workbook, or remove experiments.
+
+- **Rebuild** republishes an experiment from a corrected workbook without running
+  its analyses again, because the result tables from its submission are kept.
+  This is the route for correcting a contrast, a treatment or a citation at
+  source — the workbook stays the thing the dataset is derived from.
+- **Remove** drops the statistics and the metadata rows together.
+- **Relabel** replaces the metadata tables with edited copies, and is the only
+  write CRAVE makes to a dataset itself. It is refused unless the incoming tables
+  name exactly the experiments and comparisons already present, with each
+  comparison still under its own experiment. Labels may change; membership may
+  not. Adding or dropping a row has a correct route, and this is not it. The
+  previous tables are kept under `.crave-submit/metadata-backups/`.
+- A consistency line at the top of the tab compares the metadata against the
+  statistics actually in the database, and is computed from the files each time it
+  is drawn. A dataset built and changed only through CRAVE cannot drift, so
+  anything it reports came from outside: a hand-edited file, an interrupted
+  build, or a database written by something else.
+
+### How the two stay in step
+
+`exorcise-database` writes `database.db` and both metadata CSVs in one pass, and
+it is the only thing CRAVE lets near them. Adding, rebuilding and removing are all
+invocations of it; relabelling is checked against the database before it is
+allowed. That is the whole of the argument, and it is why the consistency line
+has nothing to do under normal use.
+
+One job at a time per dataset, enforced by a lock file naming the job that holds
+it. A job that dies without releasing the lock is reported as stale rather than
+busy, and Manage offers to clear it: a lock that outlives its job would otherwise
+make the dataset permanently unchangeable.
+
+### Configuration
+
+- **`enable_submit`** and **`enable_manage`** (both `FALSE`) control the new tabs.
+  **Neither tab authenticates anybody** — CRAVE does not know who its visitors
+  are, so what it offers, it offers to everyone who can reach it. Leave them off
+  on a public deployment and put an authenticating proxy in front of one where
+  they are on.
+- **`enable_pendragonator`** (`TRUE`) withholds the Pendragonator sub-tab of
+  Correlate, including its line of sidebar help.
+- **`hostpath`**, per dataset, names the dataset directory as the Docker daemon
+  sees it. CRAVE reaches the daemon through its socket, so bind mounts are
+  resolved on the host rather than inside CRAVE's container — the same thing
+  `exorcise_hostroot` already does for the Exorcise tab. Running natively, leave
+  it out.
+- Both tabs also require `exorcise_docker` to name a runnable image and the
+  dataset directory to be writable. A tab whose requirements are not met stays
+  hidden, and the startup log says which one was missing rather than leaving it to
+  be guessed at.
+
+### Other changes
+
+- **Exorcise 3.1 or newer is required** for Submit and Manage, which call
+  `exorcise-analyse` and `exorcise-database`. The Exorcise tab is unaffected.
+- `readxl` is a new deferred dependency, loaded the first time a workbook is read.
+- `19_ui.R` and `20_server.R` are now `29_ui.R` and `30_server.R`, so that
+  assembly still comes last with the new modules in between.
+- `loadCraveData()` takes an optional `config`, which is what the capability flags
+  of the withheld tabs are computed from. Omitting it still works and reports them
+  unavailable, which for a console session they are.
+- `tools/rcheck.py` finds modules at any two-digit number rather than 10 to 18, so
+  the new ones are covered by the id cross-reference.
+
+---
+
+## 5.1.5 — 2026-09-30
+
+- **Fixed: accented characters in the metadata files depended on the locale the
+  app was started in.** `readTableGlob()` called `fread()` without an `encoding`,
+  so it took fread's default, `"unknown"`: the bytes come back intact but the
+  strings are left unmarked, and R then reads them as whatever the process locale
+  says. On a UTF-8 host that is correct and nothing looks wrong. Started without a
+  locale — a bare `Rscript`, a systemd unit, a shiny-server install with no
+  `LANG` — it is silently wrong at the last step rather than the first: the bytes
+  survive the read, `wrangleMetadata()`, `stripHtml()` and the cache, and are
+  then destroyed on the way out, because `jsonlite` escapes each unmarked
+  non-ASCII byte. DT and selectize send the browser
+  `A<cc><81>lvarez-Quilo<cc><81>n et al (2020)` for `Álvarez-Quilón et al
+  (2020)`. Every file read through this helper — both metadata files, the
+  ontology and the library table — is written by `exorcise-database`, which
+  writes UTF-8, so UTF-8 is now declared, and an accented citation renders
+  identically under `LC_ALL=C` and `en_GB.UTF-8`. The parameter is exposed, so a
+  dataset that genuinely is not UTF-8 can still say so.
+
+  Values out of the database needed nothing: RSQLite marks its strings UTF-8
+  already, under any locale.
+
+- **`CRAVE_CACHE_VERSION` is 4L.** The metadata cache stores wrangled strings, so
+  a cache written before this change holds unmarked ones, and the fingerprint is
+  otherwise a function of the source files alone — a deployment that upgraded
+  without touching its metadata would have gone on serving the unmarked copies.
+
 ## 5.1.4 — 2026-09-21
 
 - **Added `build-and-push.sh`.** Builds, tags, pushes and optionally saves the

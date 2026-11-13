@@ -14,10 +14,22 @@ reverselog_trans <- function(base = exp(1)) {
 #' CRAVE datasets ship metadata as .csv.gz but tolerate uncompressed files, so the
 #' path is treated as a prefix. Deliberately not called `fread`: that name would
 #' shadow data.table::fread and route every ordinary call through a Sys.glob().
-readTableGlob <- function(path, ...) {
+#'
+#' @param encoding Declared encoding of the file. Every file CRAVE reads through
+#'   here is written by exorcise-database, which writes UTF-8, so UTF-8 is what is
+#'   declared. It has to be declared: fread's own default, "unknown", returns the
+#'   bytes intact but leaves the strings unmarked, which means R reads them in
+#'   whatever the process locale happens to be. That is right on a UTF-8 host and
+#'   silently wrong anywhere else -- under LC_ALL=C, jsonlite escapes every
+#'   unmarked non-ASCII byte, so DT and selectize send the browser
+#'   `A<cc><81>lvarez-Quilo<cc><81>n` in place of Álvarez-Quilón. Marking the
+#'   strings UTF-8 here makes an accented citation render the same way whatever
+#'   locale the app was started in. Override it only for a dataset that genuinely
+#'   is not UTF-8.
+readTableGlob <- function(path, ..., encoding = "UTF-8") {
   hits <- Sys.glob(paste0(path, "*"))
   if (length(hits) == 0) return(NULL)
-  data.table::fread(file = hits[1], ...)
+  data.table::fread(file = hits[1], ..., encoding = encoding)
 }
 
 #' Strip HTML tags from a character vector.
@@ -63,6 +75,20 @@ summariseItems <- function(x, max_chars = CRAVE_SUMMARY_CHARS) {
   widths <- cumsum(nchar(x) + 2L)
   keep   <- max(1L, sum(widths <= max_chars))
   paste0(paste(x[seq_len(keep)], collapse = "; "), "... and ", n - keep, " more.")
+}
+
+#' A size in bytes, written the way the machine it lands on will report it.
+#'
+#' Powers of 1024, one decimal place, and "bytes" spelled out below a kilobyte so
+#' that a small number does not read as "0.0 KB". Used to say how large a
+#' download will be before it starts.
+prettyBytes <- function(bytes) {
+  bytes <- suppressWarnings(as.numeric(bytes %||% 0))
+  if (!is.finite(bytes) || bytes < 0) return("an unknown size")
+  if (bytes < 1024) return(paste(round(bytes), "bytes"))
+  units <- c("KB", "MB", "GB", "TB")
+  i <- min(length(units), floor(log(bytes, 1024)))
+  paste0(format(round(bytes / 1024^i, 1), nsmall = 1), " ", units[i])
 }
 
 #' Format a contrast label for a plot title.

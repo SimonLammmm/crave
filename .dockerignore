@@ -1,0 +1,40 @@
+# The Dockerfile only copies shiny-server/, but everything here is still sent to
+# the daemon as build context, so keep it small.
+
+.git
+.DS_Store
+**/.DS_Store
+**/._*
+
+# The deployer's own configuration. It is bind-mounted at /app/config.R at
+# runtime, so baking a copy in only risks shipping somebody's local paths, and
+# means an image run without the mount silently uses a developer's settings
+# instead of saying the config is missing. R/09_config.R already explains what
+# to do when it is absent.
+shiny-server/config.R
+
+# Data, not code. The example dataset is for running CRAVE, not for building it.
+example-dataset/
+example-analysis/
+images/
+*.tar.gz
+
+# Runtime state a dataset accumulates: the metadata cache, and everything the
+# Submit tab keeps (workbooks, counts matrices, result tables, job logs). Neither
+# belongs in an image, and the submission area can be large.
+**/.crave-cache/
+**/.crave-submit/
+
+# Development leftovers
+tools/
+**/.Rhistory
+**/.RData
+**/.Rproj.user/
+**/__pycache__/
+**/*.pyc
+
+# Documentation is not needed at runtime
+CHANGELOG.md
+README.md
+docker-compose.yml
+build-and-push.sh

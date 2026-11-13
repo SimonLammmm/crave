@@ -15,10 +15,19 @@
 # from experiment IDs.
 # Most users will leave this FALSE.
 
+# Set `hostpath` if you are using Docker AND you want the Submit or Manage tabs.
+# Those tabs run the Exorcise container against the dataset, and CRAVE asks the
+# Docker daemon on the host to do it, so the daemon resolves the bind mount on the
+# host rather than inside CRAVE's container. `hostpath` is the same directory as
+# `path`, named the way the host names it: with a bind mount of
+# "/opt/crave/dataset-1:/data/dataset-1", `path` is the second and `hostpath` the
+# first. Running CRAVE natively, leave it out; the two are the same.
+
 datasets <- list(
   list(
     name             = "Dataset 1",
     path             = "/data/dataset-1",
+    #hostpath        = "/opt/crave/dataset-1",
     guides           = FALSE,
     citation_from_id = FALSE
   )
@@ -89,8 +98,31 @@ notices_info <- NULL
 notices_warning <- NULL
 notices_emergency <- NULL
 
+## Features
+# Three parts of CRAVE a deployment can withhold.
+#
+# Submit lets a visitor upload a counts matrix and an experimental design
+# workbook, run MAGeCK, DrugZ and Chronos over them, and add the results to a
+# dataset. Manage lets them relabel a dataset's metadata, rebuild an experiment
+# from a corrected workbook, and remove experiments. Both write to the dataset
+# directory, and neither asks who is asking -- CRAVE has no idea who its visitors
+# are. Leave them FALSE on any deployment the public can reach, and put an
+# authenticating proxy in front of one where you turn them on.
+#
+# Both also need `exorcise_docker` to name an image CRAVE can run, and a dataset
+# directory that is writable. If either is missing the tab stays hidden and the
+# reason is in the startup log.
+enable_submit <- FALSE
+enable_manage <- FALSE
+
+# The Pendragonator sub-tab of Correlate, which ranks the strongest responding
+# genes across the screens a filter selects. Switch it off to withhold it.
+enable_pendragonator <- TRUE
+
 ## Server options
-# Largest file a user may upload, in megabytes (Exorcise and Save/Load use this)
+# Largest file a user may upload, in megabytes. Exorcise, Save/Load and -- where
+# it is enabled -- Submit all use this, and a counts matrix is the big one: a
+# genome-wide screen with a dozen samples runs to tens of megabytes.
 max_upload_mb <- 100
 
 # Host and port are deliberately NOT set here. Whoever launches the app owns them:

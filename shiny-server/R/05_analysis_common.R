@@ -224,7 +224,7 @@ allGenesByStrength <- function(df, cap = Inf) {
   unique(best$gene)
 }
 
-#' The prelude shared by the Gene query and Clustergram tabs.
+#' The prelude shared by the Gene query and Heatmap tabs.
 #'
 #' Finds the screens that contain at least one hit, then fetches every gene for
 #' those screens and attaches the comparison metadata.
@@ -357,6 +357,54 @@ similarityLong <- function(wide, method = CRAVE_SIMILARITY_DEFAULT,
   tidyr::pivot_longer(out, -all_of(nameA), names_to = nameB, values_to = valueName)
 }
 
+#### Distances ####
+
+#' Extended Jaccard (Tanimoto) distance between the rows of a matrix.
+#'
+#' The textbook Jaccard index is a ratio of set sizes and is defined on presence
+#' and absence. CRISPR scores are signed and continuous, so what is computed here
+#' is its continuous generalisation, the Tanimoto coefficient:
+#'
+#'     s(x, y) = (x . y) / (||x||^2 + ||y||^2 - x . y),   d = 1 - s
+#'
+#' which reduces to the set form exactly when the vectors are binary. On signed
+#' data the coefficient can fall outside [0, 1] -- two genes with opposite score
+#' profiles give a negative inner product -- so it is clamped, which costs nothing
+#' at the similar end and keeps the result a usable distance at the other.
+#'
+#' NB clara() implements its own jaccard in C and is given the metric by name
+#' rather than this matrix, so Clara's jaccard is cluster's and everything else's
+#' is this one. They agree on what they are measuring and may differ in detail.
+jaccardDist <- function(m) {
+  m <- as.matrix(m)
+  m[is.na(m)] <- 0
+  cross <- tcrossprod(m)
+  sq    <- diag(cross)
+  den   <- outer(sq, sq, "+") - cross
+  # den == 0 only when both rows are all zero, which makes them identical.
+  sim <- ifelse(den > 0, cross / den, 1)
+  d <- 1 - sim
+  d[d < 0] <- 0
+  d[d > 1] <- 1
+  diag(d) <- 0
+  dimnames(d) <- list(rownames(m), rownames(m))
+  stats::as.dist(d)
+}
+
+#' Distance between the rows of a matrix, under any metric CRAVE offers.
+#'
+#' One definition, used by the dendrograms and by community detection, so that
+#' picking "jaccard" means the same thing wherever it is picked.
+craveDist <- function(m, metric = CRAVE_DISTANCE_DEFAULT) {
+  metric <- metric %||% CRAVE_DISTANCE_DEFAULT
+  if (identical(metric, "jaccard")) return(jaccardDist(m))
+  if (!metric %in% c("euclidean", "manhattan")) {
+    log_warn(paste0("Unrecognised distance '", metric, "'; using euclidean."))
+    metric <- "euclidean"
+  }
+  stats::dist(as.matrix(m), method = metric)
+}
+
 #### Dendrograms ####
 
 #' Build a dendrogram layer positioned to sit alongside a heatmap.
@@ -434,12 +482,10 @@ agnesTree <- function(m, method, metric) {
     log_warn(paste0("Unrecognised clustering method '", method, "'."))
     return(NULL)
   }
-  if (!metric %in% CRAVE_DISTANCE_AGNES) {
-    log_warn(paste0("agnes() does not support the '", metric,
-                    "' metric; using euclidean instead."))
-    metric <- "euclidean"
-  }
-  args <- list(x = m, method = agnesName, metric = metric)
+  # agnes() is handed a dissimilarity rather than the data and a metric name. For
+  # euclidean and manhattan that is the same calculation it would have done
+  # itself; for jaccard, which it does not implement, it is the only way in.
+  args <- list(x = craveDist(m, metric), method = agnesName)
   # Only the flexible (Lance-Williams) linkage takes a parameter, and it is
   # mandatory when that linkage is chosen.
   if (identical(agnesName, "flexible")) args$par.method <- CRAVE_AGNES_FLEXIBLE_PAR

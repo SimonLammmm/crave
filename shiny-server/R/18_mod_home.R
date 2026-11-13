@@ -42,7 +42,11 @@ homeUI <- function(id, caps, config) {
          desc = paste0(", where you can see the members of the gene classes used on ",
                        config$portal_name, ".")),
     list(cap = caps$exorcise,  tab = "Exorcise",  label = "Exorcise",  icon = "ghost",
-         desc = ", where you can reannotate spCas9 guide sequences with targets in any CRISPR chemistry.")
+         desc = ", where you can reannotate spCas9 guide sequences with targets in any CRISPR chemistry."),
+    list(cap = caps$submit,    tab = "Submit",    label = "Submit",    icon = "upload",
+         desc = ", where you can run MAGeCK, DrugZ and Chronos over a screen of your own and add the results to the database."),
+    list(cap = caps$manage,    tab = "Manage",    label = "Manage",    icon = "database",
+         desc = ", where you can correct the description of a screen or remove one from the database.")
   )
   enabled <- Filter(function(f) isTRUE(f$cap), features)
 
@@ -84,7 +88,8 @@ homeUI <- function(id, caps, config) {
 #' @param navigate Function(tabName) that switches the top-level tabset.
 homeServer <- function(id, caps, navigate) {
   moduleServer(id, function(input, output, session) {
-    for (tab in c("Correlate", "Explore", "Guides", "Libraries", "Ontology", "Exorcise")) {
+    for (tab in c("Correlate", "Explore", "Guides", "Libraries", "Ontology",
+                  "Exorcise", "Submit", "Manage")) {
       # `local` captures the loop variable; without it every button would jump to
       # the last tab in the list.
       local({

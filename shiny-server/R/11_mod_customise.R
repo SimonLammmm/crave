@@ -29,9 +29,9 @@ CORRELATE_CUSTOMISE_FIELDS <- list(
   cfField("point_colour",         "colour",   "Point colour"),
   cfField("genequery_fillscheme", "select",   "Colour violins by (gene query only)",
           c("Treatment", "Knockout", "Cell line", "Library")),
-  cfField("heatmap_high",         "colour",   "Positive correlation colour (heatmap only)"),
-  cfField("heatmap_mid",          "colour",   "Zero correlation colour (heatmap only)"),
-  cfField("heatmap_low",          "colour",   "Negative correlation colour (heatmap only)")
+  cfField("heatmap_high",         "colour",   "High colour (Heatmap and Adjacency)"),
+  cfField("heatmap_mid",          "colour",   "Midpoint colour (Heatmap and Adjacency)"),
+  cfField("heatmap_low",          "colour",   "Low colour (Heatmap and Adjacency)")
 )
 
 #' Button that opens the customisation modal.
