@@ -30,6 +30,36 @@ craveServer <- function(config, dataStore) {
 
     navigate <- function(tab) updateTabsetPanel(session, "main", selected = tab)
 
+    #' Re-read every dataset from disk and swap it in for all sessions.
+    #'
+    #' Used by the Refresh data tab and by Submit and Manage, which have just
+    #' changed a dataset on disk and need the app to see it. The old handles are
+    #' closed only once the new ones are in place, so a failed reload leaves the
+    #' app serving what it was already serving.
+    reloadData <- function() {
+      withProgress(message = "Reloading datasets...", value = NULL, {
+        old <- dataStore()
+        fresh <- tryCatch(
+          loadCraveData(config$datasets, config$exorcise_root, config$exorcise_docker,
+                        create_indexes = isTRUE(config$create_indexes),
+                        config = config),
+          error = function(e) {
+            log_error(paste0("Data refresh failed: ", conditionMessage(e)))
+            NULL
+          }
+        )
+        if (is.null(fresh) || isFALSE(fresh$caps$explore)) {
+          showNotification("The data could not be reloaded. The previous data are still in use.",
+                           type = "error", duration = 8)
+          return(invisible(FALSE))
+        }
+        dataStore(fresh)
+        closeCraveData(old)
+        showNotification("Datasets reloaded.", type = "message", duration = 4)
+        invisible(TRUE)
+      })
+    }
+
     #### Tabs ####
     homeServer("home", caps, navigate)
     correlateHandle <- correlateServer("correlate", data, bus)
@@ -41,6 +71,13 @@ craveServer <- function(config, dataStore) {
     if (isTRUE(caps$libraries)) librariesServer("libraries", data)
     if (isTRUE(caps$ontology))  ontologyServer("ontology", data)
     exorciseHandle <- if (isTRUE(caps$exorcise)) exorciseServer("exorcise", config) else NULL
+
+    # Submit and Manage change the dataset under the running app, so each of them
+    # asks for the same reload the Refresh data tab performs. Shared rather than
+    # reimplemented: the reload has to close the old connections, and a second
+    # copy of that would be a second chance to leak them.
+    if (isTRUE(caps$submit)) submitServer("submit", data, config, onChanged = reloadData)
+    if (isTRUE(caps$manage)) manageServer("manage", data, config, onChanged = reloadData)
 
     #### Plot brushing ####
     # plotly reports selections through a fixed, un-namespaced input id, so it can
@@ -82,25 +119,7 @@ craveServer <- function(config, dataStore) {
       if (identical(input$main, "Save/Load")) {
         saveLoadOpened(saveLoadOpened() + 1)
       } else {
-        withProgress(message = "Reloading datasets...", value = NULL, {
-          old <- dataStore()
-          fresh <- tryCatch(
-            loadCraveData(config$datasets, config$exorcise_root, config$exorcise_docker,
-                          create_indexes = isTRUE(config$create_indexes)),
-            error = function(e) {
-              log_error(paste0("Data refresh failed: ", conditionMessage(e)))
-              NULL
-            }
-          )
-          if (is.null(fresh) || isFALSE(fresh$caps$explore)) {
-            showNotification("The data could not be reloaded. The previous data are still in use.",
-                             type = "error", duration = 8)
-          } else {
-            dataStore(fresh)
-            closeCraveData(old)
-            showNotification("Datasets reloaded.", type = "message", duration = 4)
-          }
-        })
+        reloadData()
       }
     })
 

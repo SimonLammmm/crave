@@ -30,6 +30,10 @@ craveUI <- function(caps, config) {
     if (isTRUE(caps$libraries)) librariesUI("libraries") else NULL,
     if (isTRUE(caps$ontology))  ontologyUI("ontology")   else NULL,
     if (isTRUE(caps$exorcise))  exorciseUI("exorcise")   else NULL,
+    # The two that write. Absent unless config.R enables them and the machinery
+    # they need is actually there; see loadCraveData().
+    if (isTRUE(caps$submit))    submitUI("submit")       else NULL,
+    if (isTRUE(caps$manage))    manageUI("manage")       else NULL,
 
     tabPanel("Refresh data", icon = icon("arrows-rotate"),
              fluidPage(tags$p("Refreshing the data connection. Please wait..."))),

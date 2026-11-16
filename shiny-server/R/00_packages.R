@@ -24,7 +24,7 @@ CRAVE_PKGS_EAGER <- c(
 # Packages deferred until the analysis that needs them is actually run.
 # Kept as a manifest so the Dockerfile and this file cannot drift apart.
 CRAVE_PKGS_LAZY <- c(
-  "cluster",        # agnes(): clustergram + correlation heatmap dendrograms
+  "cluster",        # agnes(), clara(): dendrograms and community detection
   "ggdendro",       # ggdendrogram(): the same dendrograms
   "igraph",         # correlation network
   "umap",           # Reduce tab, UMAP method
@@ -32,7 +32,8 @@ CRAVE_PKGS_LAZY <- c(
   "mice",           # Reduce tab imputation, all methods
   "ggVennDiagram",  # Overlap tab, Venn style
   "ggupset",        # Overlap tab, Upset style
-  "DescTools"       # AUC(): ROC tab
+  "DescTools",      # AUC(): ROC tab
+  "readxl"          # the Submit and Manage tabs, reading an analysis workbook
 )
 
 # Packages that must be INSTALLED but are never loaded or attached by CRAVE.

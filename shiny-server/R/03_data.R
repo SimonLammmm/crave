@@ -342,6 +342,10 @@ loadDataset <- function(ds, create_indexes = TRUE) {
 
   list(
     name         = ds$name,
+    # Kept so that Submit and Manage know where to write, and what to call the
+    # directory when the Exorcise container is handed it. See datasetHostPath().
+    path         = ds$path,
+    hostpath     = ds$hostpath %||% ds$path,
     con          = con,
     experiments  = cached$experiments,
     comparisons  = cached$comparisons,
@@ -350,6 +354,30 @@ loadDataset <- function(ds, create_indexes = TRUE) {
     guideLibrary = if (isTRUE(ds$guides) && file.exists(file_guide)) file_guide else NULL,
     libraries    = if (isTRUE(ds$guides) && file.exists(file_libs))  file_libs  else NULL
   )
+}
+
+#' Probe whether the Exorcise Docker image can be run at all.
+#'
+#' Shared by the three features that need it: the Exorcise tab, which also needs
+#' reference data, and Submit and Manage, which do not -- exorcise-analyse and
+#' exorcise-database read a workbook and a counts table, never a genome.
+detectExorciseImage <- function(image, what = "Exorcise") {
+  if (length(image) == 0 || !nzchar(image)) return(FALSE)
+  if (nzchar(Sys.which("docker")) == FALSE) {
+    log_info(paste0("Docker CLI not found; ", what, " disabled."))
+    return(FALSE)
+  }
+  status <- tryCatch(
+    suppressWarnings(system2("docker", c("image", "inspect", shQuote(image)),
+                             stdout = FALSE, stderr = FALSE)),
+    error = function(e) 1L
+  )
+  ok <- identical(as.integer(status), 0L)
+  if (!ok) {
+    log_info(paste0("Exorcise image '", image, "' not present locally; ", what,
+                    " disabled."))
+  }
+  ok
 }
 
 #' Probe whether the Exorcise Docker image and reference data are both present.
@@ -364,18 +392,7 @@ detectExorcise <- function(root, image) {
     log_info(paste0("No .2bit reference found under ", root, "; Exorcise disabled."))
     return(FALSE)
   }
-  if (nzchar(Sys.which("docker")) == FALSE) {
-    log_info("Docker CLI not found; Exorcise disabled.")
-    return(FALSE)
-  }
-  status <- tryCatch(
-    suppressWarnings(system2("docker", c("image", "inspect", shQuote(image)),
-                             stdout = FALSE, stderr = FALSE)),
-    error = function(e) 1L
-  )
-  ok <- identical(as.integer(status), 0L)
-  if (!ok) log_info(paste0("Exorcise image '", image, "' not present locally; Exorcise disabled."))
-  ok
+  detectExorciseImage(image)
 }
 
 #' Build the picker choice lists shared by the Explore and Correlate filters.
@@ -409,8 +426,12 @@ buildChoices <- function(experiments, comparisons) {
 }
 
 #' Load every dataset declared in config.R and assemble the app data object.
+#' @param config The deployment configuration, used only for the capability flags
+#'   of the tabs a deployer can withhold. Optional, so that the console recipe in
+#'   the README -- loadCraveData(config$datasets) -- still works; Submit and Manage
+#'   are then reported as unavailable, which for a console session they are.
 loadCraveData <- function(datasets, exorcise_root = NULL, exorcise_docker = NULL,
-                          create_indexes = TRUE) {
+                          create_indexes = TRUE, config = NULL) {
   t0 <- Sys.time()
 
   loaded <- lapply(datasets, loadDataset, create_indexes = create_indexes)
@@ -422,8 +443,10 @@ loadCraveData <- function(datasets, exorcise_root = NULL, exorcise_docker = NULL
       ontology = data.table(), genes = character(0),
       comparisonSource = character(0), statTemplate = NULL,
       files = list(), choices = list(),
+      datasets = list(),
       caps = list(explore = FALSE, guides = FALSE, libraries = FALSE,
-                  ontology = FALSE, exorcise = FALSE)
+                  ontology = FALSE, exorcise = FALSE, submit = FALSE,
+                  manage = FALSE, pendragonator = FALSE)
     ))
   }
 
@@ -463,6 +486,12 @@ loadCraveData <- function(datasets, exorcise_root = NULL, exorcise_docker = NULL
       guideLibrary = if (length(guideFile)) guideFile[[1]] else NULL,
       libraries    = if (length(libsFile))  libsFile[[1]]  else NULL
     ),
+    # Dataset specs, by name, for the tabs that write: path, host path, and whether
+    # the directory can actually be written to.
+    datasets = lapply(loaded, function(d) list(
+      name = d$name, path = d$path, hostpath = d$hostpath,
+      writable = datasetWritable(d$path)
+    )),
     caps = list(
       explore   = nrow(experiments) > 0,
       guides    = length(guideFile) > 0,
@@ -471,6 +500,30 @@ loadCraveData <- function(datasets, exorcise_root = NULL, exorcise_docker = NULL
       exorcise  = detectExorcise(exorcise_root, exorcise_docker)
     )
   )
+
+  # Submit and Manage need three things at once: the deployer to have asked, an
+  # image to run, and somewhere to write. Each is reported separately in the log,
+  # because "the tab is missing" is otherwise a guessing game.
+  writable <- vapply(out$datasets, function(d) isTRUE(d$writable), logical(1))
+  canWrite <- any(writable)
+  # %||% so that the console recipe in the README -- loadCraveData(config$datasets,
+  # config = config) -- probes the image config.R names rather than nothing.
+  image <- exorcise_docker %||% config$exorcise_docker
+  haveImage <- (isTRUE(config$enable_submit) || isTRUE(config$enable_manage)) &&
+    detectExorciseImage(image, "Submit/Manage")
+  for (feature in c("submit", "manage")) {
+    asked <- isTRUE(config[[paste0("enable_", feature)]])
+    out$caps[[feature]] <- asked && haveImage && canWrite
+    if (asked && !out$caps[[feature]]) {
+      log_warn(paste0(
+        "The ", feature, " tab is enabled in config.R but unavailable: ",
+        if (!haveImage) "the Exorcise image is not runnable" else
+          "no configured dataset directory is writable", "."))
+    }
+  }
+  # Nothing to detect for Pendragonator: it is a view of data already loaded, so
+  # the config flag is the whole of it.
+  out$caps$pendragonator <- !identical(config$enable_pendragonator, FALSE)
   out$choices <- buildChoices(experiments, comparisons)
 
   log_info(paste0(

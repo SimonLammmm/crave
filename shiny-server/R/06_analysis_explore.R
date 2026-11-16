@@ -285,30 +285,68 @@ plotOverlap <- function(data, contrasts, method, stat, cutoff, direction,
 
 #### ROC ####
 
-#' Precision-recall sweep for one query screen against a reference hit set.
+#' Sweep order for the query screens: the most base-hit-like gene first.
 #'
-#' Sorts once and uses cumulative counts, so the whole threshold range costs a
-#' single pass over the query screen.
-#'
-#' @param ascending TRUE when smaller statistics are stronger (FDR, Rank), so the
-#'   selection is `stat <= s`; FALSE for Score, where it is `stat >= s`.
-rocSweep <- function(headStat, inBase, steps, ascending) {
-  ok <- !is.na(headStat)
-  headStat <- headStat[ok]
-  inBase   <- inBase[ok]
-  if (length(headStat) == 0) return(list(q = rep(0, length(steps)), tot = rep(0, length(steps))))
-
-  ord <- order(headStat, decreasing = !ascending)
-  sorted <- headStat[ord]
-  cumIn  <- cumsum(inBase[ord])
-
-  idx <- if (ascending) {
-    findInterval(steps, sorted)
+#' The base screen's direction orients the sweep, because it has to -- a screen that
+#' enriched a gene the base screen depleted has not recovered it, and an undirected
+#' order would say it had. It never removes a gene from the sweep.
+rocSweepKey <- function(df, stat, direction) {
+  down <- identical(direction, "Hypersensitivity hits")
+  up   <- identical(direction, "Suppressing hits")
+  if (identical(stat, "FDR")) {
+    # An FDR carries no direction of its own, so on a directed question a gene scored
+    # the wrong way is ordered by how confidently it went the wrong way: 1 is the
+    # hinge where the two directions meet and neither is evidence of anything.
+    wrong <- if (down) df$score > 0 else if (up) df$score < 0 else rep(FALSE, nrow(df))
+    ifelse(!is.na(wrong) & wrong, 2 - df$fdr, df$fdr)
+  } else if (identical(stat, "Rank")) {
+    if (down) df$rank1 else if (up) df$rank2 else pmin(df$rank1, df$rank2)
   } else {
-    findInterval(-steps, -sorted)
+    if (down) df$score else if (up) -df$score else -abs(df$score)
   }
-  q <- ifelse(idx > 0, cumIn[pmax(idx, 1L)], 0)
-  list(q = q, tot = idx)
+}
+
+#' Sweep one query screen gene by gene and return the curve it traces.
+#'
+#' @param key Sweep order from rocSweepKey(), smallest first.
+#' @param inBase TRUE where the gene is one of the base screen's hits.
+#' @return NULL if the screen holds no positives or no negatives, otherwise the sweep
+#'   order, the per-gene rates in that order, the counts behind them, and the
+#'   de-duplicated points the AUC is taken over.
+rocSweep <- function(key, inBase) {
+  # A gene the query screen could not score is swept last rather than dropped: it was
+  # measured and not recovered, and dropping it would shrink whichever denominator it
+  # belongs to and flatter the screen.
+  key[!is.finite(key)] <- Inf
+  ord    <- order(key)
+  key    <- key[ord]
+  inBase <- inBase[ord]
+
+  P <- sum(inBase)
+  N <- length(inBase) - P
+  if (P == 0 || N == 0) return(NULL)
+
+  # Tied statistics move as a block: every gene sharing a value takes the counts from
+  # the end of its block, so the curve crosses it diagonally instead of treating an
+  # arbitrary sort order as evidence. This is the Mann-Whitney AUC with average ranks
+  # -- a tie counts as half -- and it is what lets the gene-level table below be
+  # integrated straight back into the AUC reported on the plot.
+  runs <- rle(key)$lengths
+  ends <- cumsum(runs)
+  tpr  <- cumsum(inBase)[rep(ends, runs)] / P
+  fpr  <- cumsum(!inBase)[rep(ends, runs)] / N
+
+  list(
+    order = ord, tpr = tpr, fpr = fpr, P = P, N = N,
+    # (0, 0) belongs at the start of the curve. (1, 1) needs no anchor: the sweep
+    # covers every gene in the screen, so it arrives there on its own.
+    curve = tibble(fpr = c(0, fpr[ends]), tpr = c(0, tpr[ends]))
+  )
+}
+
+#' Trapezoid over points already in sweep order.
+rocAuc <- function(curve) {
+  sum(diff(curve$fpr) * (head(curve$tpr, -1) + tail(curve$tpr, -1)) / 2)
 }
 
 plotRoc <- function(data, baseContrast, headContrasts, method, stat, cutoff, direction) {
@@ -321,93 +359,110 @@ plotRoc <- function(data, baseContrast, headContrasts, method, stat, cutoff, dir
   if (any(baseContrast %in% headContrasts)) {
     return(msgResult("The base screen must not also appear in the query screens."))
   }
-  if (!needPkg("DescTools")) {
-    return(msgResult("The DescTools package is not installed, so AUC cannot be computed."))
-  }
+  if (is.na(asNumericOr(cutoff, NA_real_))) return(msgResult("The cutoff must be a number."))
 
-  cutoffValue <- asNumericOr(cutoff, NA_real_)
-  if (is.na(cutoffValue)) return(msgResult("The cutoff must be a number."))
-
-  #' Apply the direction filter and derive the sweep statistic.
-  prepare <- function(df, applyCutoff) {
-    if (identical(direction, "Hypersensitivity hits")) df <- df %>% filter(score < 0)
-    else if (identical(direction, "Suppressing hits")) df <- df %>% filter(score > 0)
-    if (identical(stat, "Score")) {
-      df <- df %>% mutate(stat = abs(score))
-      if (applyCutoff) df <- df %>% filter(abs(score) >= abs(cutoffValue))
-    } else if (identical(stat, "FDR")) {
-      df <- df %>% mutate(stat = fdr)
-      if (applyCutoff) df <- df %>% filter(!is.na(fdr) & fdr <= cutoffValue)
-    } else {
-      df <- df %>% mutate(rank = rank(abs(score)), stat = rank)
-      if (applyCutoff) df <- df %>% filter(rank <= cutoffValue)
-    }
-    df
-  }
-
-  baseHits <- prepare(
-    fetchStat(data, comparisonIdsFor(data, baseContrast), NULL, method), TRUE
-  )
-  if (nrow(baseHits) < 1) {
+  # The statistic, the cutoff and the direction define the positives, and they do that
+  # in the base screen alone. Applied to a query screen as well they would delete
+  # positives and negatives alike from the sweep, and recall would reach 1 having
+  # never looked at the genes that screen happened to score the other way.
+  baseIds <- comparisonIdsFor(data, baseContrast)
+  if (length(baseIds) == 0) return(msgResult("The base screen is not in the loaded data."))
+  baseGenes <- unique(applyDirectionCutoff(
+    setAnalysisFrame(data, baseIds, method, stat), stat, cutoff, direction
+  )$gene)
+  if (length(baseGenes) == 0) {
     return(msgResult("No hits in the base screen at this cutoff.\nPlease relax the cutoff."))
   }
 
-  headHits <- prepare(
-    fetchStat(data, comparisonIdsFor(data, headContrasts), NULL, method), FALSE
-  )
-  if (nrow(headHits) < 1) {
-    return(msgResult("No data in any of the query screens with these settings."))
+  headIds <- comparisonIdsFor(data, headContrasts)
+  if (length(headIds) == 0) {
+    return(msgResult("None of the query screens are in the loaded data."))
+  }
+  headFrame <- fetchStat(data, headIds, NULL, method) %>%
+    filter(gene_id != "X") %>%
+    # One row per gene: a screen reporting a gene twice would count twice in both
+    # denominators and once in the sweep order, for no reason the reader could see.
+    distinct(comparison_id, gene_id, .keep_all = TRUE)
+  if (nrow(headFrame) == 0) {
+    return(msgResult("No data in any of the query screens for this method."))
+  }
+  headFrame <- headFrame %>%
+    group_by(comparison_id) %>%
+    # Ranked within the screen. Pooling the query screens would make one position in
+    # the sweep mean a different thing in each of them.
+    mutate(rank1 = rank(score, ties.method = "min"),
+           rank2 = rank(-score, ties.method = "min")) %>%
+    ungroup()
+  headFrame$key <- rocSweepKey(headFrame, stat, direction)
+
+  nBase  <- length(baseGenes)
+  sweeps <- Filter(Negate(is.null), lapply(split(headFrame, headFrame$comparison_id), function(this) {
+    sw <- rocSweep(this$key, this$gene_id %in% baseGenes)
+    if (is.null(sw)) return(NULL)
+    this   <- this[sw$order, ]
+    screen <- friendlyIdsFor(data, this$comparison_id[1])[1]
+    if (sw$P < nBase) {
+      log_warn(paste0("ROC: ", nBase - sw$P, " of ", nBase, " base hits are absent from ",
+                      screen, "; recall is measured against the ", sw$P, " it can reach."))
+    }
+    list(
+      screen = screen, auc = rocAuc(sw$curve), P = sw$P,
+      curve = sw$curve,
+      genes = tibble(
+        Contrast       = screen,
+        `Gene symbol`  = this$gene_id,
+        Score          = this$score,
+        FDR            = this$fdr,
+        `Hit in base`  = this$gene_id %in% baseGenes,
+        # Rounded where the rest of the app rounds, at the point of reporting. Six
+        # figures still rebuild the AUC to within a part in a million.
+        Recall         = signif(sw$tpr, 6),
+        FPR            = signif(sw$fpr, 6)
+      )
+    )
+  }))
+  if (length(sweeps) == 0) {
+    return(msgResult(paste0("None of the query screens contain any of the ", nBase,
+                            " base hits, so there is nothing to recover.")))
   }
 
-  ascending <- !identical(stat, "Score")
-  baseGenes <- unique(baseHits$gene_id)
-  nBase <- nrow(baseHits)
+  # How many of the base hits each screen could reach belongs on the plot: a curve
+  # drawn over 40 of 60 positives is not the curve the legend would otherwise claim.
+  legend <- vapply(sweeps, function(s) paste0(
+    s$screen, "\nAUC: ", signif(s$auc, 4),
+    if (s$P < nBase) paste0("\n", s$P, " of ", nBase, " hits present") else ""
+  ), character(1))
 
-  headSplit <- split(headHits, headHits$comparison_id)
-  roc <- bind_rows(lapply(names(headSplit), function(h) {
-    this <- headSplit[[h]]
-    maxStat <- suppressWarnings(max(this$stat, na.rm = TRUE))
-    if (!is.finite(maxStat)) return(NULL)
-    steps <- seq(from = 0, to = maxStat, length.out = CRAVE_ROC_STEPS)
-    sweep <- rocSweep(this$stat, this$gene_id %in% baseGenes, steps, ascending)
-    k <- nrow(this)
-    precision <- 1 - ((sweep$tot - sweep$q) / k)
-    recall    <- sweep$q / nBase
-    # Normalise to rates.
-    if (max(precision, na.rm = TRUE) != 0) precision <- precision / max(precision, na.rm = TRUE)
-    if (max(recall,    na.rm = TRUE) != 0) recall    <- recall    / max(recall,    na.rm = TRUE)
-    tibble(step = steps, precision = precision, recall = recall) %>%
-      bind_rows(tibble(step = NA_real_, precision = c(0, 1), recall = c(1, 0))) %>%
-      mutate(head = h, screen = friendlyIdsFor(data, h)[1])
+  curve <- bind_rows(lapply(seq_along(sweeps), function(i) {
+    sweeps[[i]]$curve %>% mutate(legend = legend[i])
   }))
 
-  if (is.null(roc) || nrow(roc) == 0) {
-    return(msgResult("The precision-recall curve could not be computed."))
-  }
-
-  auc <- roc %>%
-    group_by(head) %>%
-    summarise(auc = suppressWarnings(as.numeric(DescTools::AUC(1 - precision, recall))),
-              .groups = "drop")
-
-  roc <- roc %>%
-    left_join(auc, by = "head") %>%
-    mutate(legend = paste0(screen, "\nAUC: ", signif(auc, 4)))
-
-  p <- ggplot(roc, aes(x = 1 - precision, y = recall, colour = legend, auc = auc)) +
+  p <- ggplot(curve, aes(x = fpr, y = tpr, colour = legend)) +
     geom_line() +
-    geom_abline(slope = 1, intercept = 0) +
+    geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
     scale_colour_discrete(name = "Contrast") +
+    coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
     theme_classic() +
-    xlab("1 - Precision\n(False positive rate)") +
-    ylab("Recall\n(True positive rate)") +
-    ggtitle(paste0("Precision-recall for <b>", baseContrast[1], "</b>"))
+    xlab("False positive rate\n(1 - specificity)") +
+    ylab("True positive rate\n(recall)") +
+    ggtitle(paste0(
+      "Recovery of hits in <b>", baseContrast[1], "</b>",
+      "<br><sup>", nBase, " hit", if (nBase == 1) "" else "s", ": ", stat %||% "Score",
+      " better than ", asNumericOr(cutoff, NA_real_), ", ",
+      switch(direction %||% "",
+             `Hypersensitivity hits` = "hypersensitivity",
+             `Suppressing hits`      = "suppressing",
+             "either direction"),
+      ", ", method, "</sup>"
+    ))
 
   list(
     p = ggplotly(p),
-    plotdata = roc %>%
-      transmute(Contrast = screen, `ROC-AUC` = auc, Precision = precision, Recall = recall) %>%
-      distinct(),
+    # The gene-level sweep, not the curve's coordinates: this says which genes were
+    # recovered and in what order, so the curve and the AUC can both be rebuilt from
+    # it -- the trapezoid over (FPR, Recall) down these rows is the AUC on the plot --
+    # and the hit set can be read off the flagged rows.
+    plotdata = bind_rows(lapply(sweeps, function(s) s$genes)),
     height = 900
   )
 }

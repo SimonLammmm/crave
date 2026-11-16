@@ -65,7 +65,9 @@ exploreSidebarUI <- function(ns) {
            "calculates the statistical significance of the overlap between pairs of",
            "screens using a hypergeometric test."),
     tags$p(tags$strong("ROC"), "shows how well hits from a reference screen are",
-           "captured by other screens using precision-recall curves.")
+           "recovered by other screens: every gene in a query screen is swept in order,",
+           "and the curve records how many of the reference hits have been reached",
+           "against how many non-hits came with them.")
   )
 }
 
@@ -237,8 +239,9 @@ exploreUI <- function(id) {
             "ROC", icon = icon("chart-area"),
             plotPanelUI(
               ns("roc"), "ROC",
-              c("Draw a ROC curve showing the precision-recall of hits in a reference screen by query screens.",
-                "Use the controls to set the threshold for a hit in the reference screen.",
+              c("Draw a ROC curve showing how well query screens recover the hits of a reference screen.",
+                paste("The statistic, cutoff and direction define a hit in the reference screen and",
+                      "nowhere else: every gene in a query screen is swept, whichever way it scored."),
                 methodLinks()),
               controls = tagList(
                 inputGrid(
@@ -495,16 +498,46 @@ exploreServer <- function(id, data, bus) {
       want[want != ANY_CHOICE]
     }
 
-    #' The comparisons that satisfy the search form, within the scoped set.
-    searchedComparisons <- reactive({
+    #' Which scoped comparisons each search field admits, one mask per field.
+    #'
+    #' NULL for a field with nothing picked in it. Masks rather than a table
+    #' narrowed field by field, because the form needs several combinations of
+    #' them -- the whole form, and the form with each field's own filter lifted
+    #' -- and every one of those is then an `&` of vectors already computed
+    #' instead of another pass over the data.
+    searchMasks <- reactive({
       cmp <- scopedComparisons()
-      for (f in COMPARISON_SEARCH_FIELDS) {
+      lapply(COMPARISON_SEARCH_FIELDS, function(f) {
         want <- searchValue(f)
-        if (length(want) == 0) next
-        cmp <- cmp[comparisonColumn(cmp, f$col) %in% want, , drop = FALSE]
-      }
-      cmp
+        if (length(want) == 0) return(NULL)
+        comparisonColumn(cmp, f$col) %in% want
+      })
     })
+
+    #' The scoped comparisons the form admits, optionally with one field lifted.
+    #'
+    #' Lifting a field is how its own list of choices is built. Values within a
+    #' field are an OR, so what it should offer is everything still reachable
+    #' once the *other* fields have had their say. Offering what the whole form
+    #' admits instead narrows a field to exactly the values already picked in
+    #' it: pick one treatment and the only treatment left to pick is that one,
+    #' so a second can never be added and the OR is unreachable from the form.
+    #'
+    #' @param except Index into COMPARISON_SEARCH_FIELDS, or NULL for all of them.
+    matchingComparisons <- function(except = NULL) {
+      cmp <- scopedComparisons()
+      masks <- searchMasks()
+      if (!is.null(except)) masks[[except]] <- NULL
+      keep <- NULL
+      for (m in masks) {
+        if (is.null(m)) next
+        keep <- if (is.null(keep)) m else keep & m
+      }
+      if (is.null(keep)) cmp else cmp[keep, , drop = FALSE]
+    }
+
+    #' The comparisons that satisfy the search form, within the scoped set.
+    searchedComparisons <- reactive(matchingComparisons())
 
     # Keep the form's choices, its "(any)" sentinel and the table's column filters
     # in step. Debounced, because one click would otherwise fan out into a
@@ -521,11 +554,11 @@ exploreServer <- function(id, data, bus) {
 
     observeEvent(searchTrigger(), ignoreNULL = FALSE, {
       selectionNotice(NULL)
-      cmp <- searchedComparisons()
       tableCols <- setdiff(names(data()$comparisons), COMPARISONS_TABLE_HIDDEN)
       columnFilters <- rep("", length(tableCols) + 1L)
 
-      for (f in COMPARISON_SEARCH_FIELDS) {
+      for (i in seq_along(COMPARISON_SEARCH_FIELDS)) {
+        f <- COMPARISON_SEARCH_FIELDS[[i]]
         inputId <- paste0("sel_", f$id)
         current <- input[[inputId]]
 
@@ -540,21 +573,26 @@ exploreServer <- function(id, data, bus) {
         } else {
           current
         }
+        picked <- newSelected[newSelected != ANY_CHOICE]
 
+        # Everything this field could still be narrowed to, which is computed
+        # with its own filter lifted -- see matchingComparisons(). What is
+        # already picked stays in the list whatever the other fields leave
+        # reachable, because selectize silently drops a selection that is not
+        # among the choices, and a search narrowed to nothing has to stay
+        # undoable rather than rewrite itself.
+        reachable <- comparisonColumn(matchingComparisons(except = i), f$col)
         updateSelectizeInput(
           session, inputId, server = FALSE, selected = newSelected,
-          choices = c(ANY_CHOICE, sort(unique(comparisonColumn(cmp, f$col))))
+          choices = c(ANY_CHOICE, sort(unique(c(reachable, picked))))
         )
 
         # Mirror the selection into the DT column filter. +1 for the row-name
         # column that DT prepends.
         colIdx <- match(f$col, tableCols)
-        if (!is.na(colIdx)) {
-          picked <- newSelected[newSelected != ANY_CHOICE]
-          if (length(picked)) {
-            columnFilters[colIdx + 1L] <-
-              paste0("[", paste0("\"", picked, "\"", collapse = ","), "]")
-          }
+        if (!is.na(colIdx) && length(picked)) {
+          columnFilters[colIdx + 1L] <-
+            paste0("[", paste0("\"", picked, "\"", collapse = ","), "]")
         }
       }
 
@@ -611,7 +649,7 @@ exploreServer <- function(id, data, bus) {
                     input$overlap_style)
       })
 
-    plotPanelServer("roc", busyMessage = "Computing precision-recall...",
+    plotPanelServer("roc", busyMessage = "Sweeping the query screens...",
       compute = function() {
         plotRoc(data(), input$roc_base, input$roc_head, input$roc_method,
                 input$roc_stat, input$roc_value, input$roc_direction)

@@ -21,7 +21,13 @@ CRAVE_CONFIG_DEFAULTS <- list(
   legal_text            = NULL,
   create_indexes        = TRUE,
   enable_input_logging  = FALSE,
-  max_upload_mb         = 100
+  max_upload_mb         = 100,
+  # Tabs and sub-tabs a deployment can withhold. The two that write to a dataset
+  # are off unless asked for: a public portal has no business offering them, and a
+  # deployer who does want them has to say so rather than discover them.
+  enable_submit         = FALSE,
+  enable_manage         = FALSE,
+  enable_pendragonator  = TRUE
 )
 
 # Settings that belong to whatever launches the app, not to CRAVE. Recognised only
@@ -89,6 +95,13 @@ loadCraveConfig <- function(path = "config.R") {
         warnings <- c(warnings, paste0("Dataset ", i, " has no `name`; using its path."))
         config$datasets[[i]]$name <- basename(ds$path)
       }
+      if (!is.null(ds$hostpath) && !startsWith(ds$hostpath, "/")) {
+        warnings <- c(warnings, paste0(
+          "Dataset '", label, "' has a relative `hostpath`. It names the directory ",
+          "as the Docker daemon sees it on the host, so it has to be absolute. ",
+          "Ignoring it."))
+        config$datasets[[i]]$hostpath <- NULL
+      }
     }
     names <- vapply(config$datasets, function(d) d$name %||% "", character(1))
     if (anyDuplicated(names)) {
@@ -104,6 +117,36 @@ loadCraveConfig <- function(path = "config.R") {
       "launches the app: RStudio's Run App, shiny-server and ShinyProxy all choose ",
       "them, and Docker passes them in its CMD. For a bare Rscript deployment, use ",
       "shiny::runApp('shiny-server', host = ..., port = ...) instead."))
+  }
+
+  # -- Submit and Manage ------------------------------------------------------
+  # Both write to a dataset through the Exorcise container, so both need an image
+  # to run and a directory they can write to. Saying so here, once, beats a tab
+  # that appears and then fails on the first click.
+  wantsWriting <- isTRUE(config$enable_submit) || isTRUE(config$enable_manage)
+  if (wantsWriting) {
+    asked <- paste(c(if (isTRUE(config$enable_submit)) "Submit",
+                     if (isTRUE(config$enable_manage)) "Manage"), collapse = " and ")
+    if (is.null(config$exorcise_docker) || !nzchar(config$exorcise_docker)) {
+      warnings <- c(warnings, paste0(
+        asked, " is enabled but `exorcise_docker` names no image. Both tabs run ",
+        "exorcise-analyse and exorcise-database in that image, so they will stay ",
+        "hidden until it is set."))
+    }
+    writable <- vapply(config$datasets, function(d) {
+      !is.null(d$path) && dir.exists(d$path) && file.access(d$path, 2) == 0
+    }, logical(1))
+    if (length(writable) && !any(writable)) {
+      warnings <- c(warnings, paste0(
+        asked, " is enabled but no configured dataset directory is writable. ",
+        "Both tabs rewrite the dataset in place, so they will stay hidden."))
+    } else if (any(!writable)) {
+      readonly <- vapply(config$datasets[!writable], function(d) d$name %||% d$path,
+                         character(1))
+      warnings <- c(warnings, paste0(
+        "Dataset(s) ", paste(readonly, collapse = ", "), " are not writable, so ",
+        asked, " will not offer them."))
+    }
   }
 
   if (!config$portal_theme %in% VALID_SHINY_THEMES) {

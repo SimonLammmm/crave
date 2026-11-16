@@ -4,6 +4,10 @@ Contrasts-based Resource for Analysis, Visualisation, and Exploration
 ## Abstract
 CRAVE enables exploration of single contrasts between a pair of conditions in a biological experiment as well as analysis of trends across contrasts.
 
+## Evaluation
+(DDRcs)[https://sjlab.cruk.cam.ac.uk/ddrcs/], the DNA damage response CRISPR screen explorer, runs on CRAVE. Visit it to evaluate features without
+deploying. DDRcs may be kept a few versions behind this repo and has some features disabled.
+
 ## Deployment
 CRAVE can be deployed as a Docker container or natively in Rshiny.
 
@@ -63,78 +67,68 @@ A preview of CRAVE is now accessible at http://localhost:3838.
 
 Customise CRAVE by editing the shiny-server/config.R file.
 
-## Layout
+## Configuration
+CRAVE ships with an example config file at `shiny-server/config.example.R`. Use
+this file to point to CRAVE-compatible datasets, the Exorcise image if using, and
+to enable and disable modules. Instructions are in the `config.example.R` file.
 
+## Example data
+The `example-dataset/` shipped with CRAVE is loaded when you run CRAVE out of the
+box in Docker compose. Use this to demonstrate the features on CRAVE for evaluation.
+
+The `example-analysis/` folder contains Exorcise commands to create your own CRAVE-
+compatible dataset. CRAVE ships with example input files to demonstrate running
+Exorcise. To run them on your own files, you'll need a counts matrix and an
+experimental design .xlsx workbook, in the format provided in the example files.
+
+### example-dataset/
+Contains a subset of the DDRcs dataset.
 ```
-shiny-server/
-  app.R              entry point; sources R/ in numeric order
-  config.example.R   template configuration, copy to config.R
-  R/
-    00_packages.R    which packages load at start-up and which load on demand
-    01_constants.R   version, limits, defaults, static reference data
-    02_utils.R       shared helpers
-    03_data.R        dataset loading, metadata cache, SQLite indexing
-    04_query.R       parameterised statistics queries
-    05_analysis_common.R    primitives shared between analyses
-    06_analysis_*.R  the analyses, as pure functions of explicit arguments
-    09_config.R      config.R loading and validation
-    1*_mod_*.R       one Shiny module per tab, plus two reusable ones
-    19_ui.R          UI assembly
-    20_server.R      module wiring
-```
-
-Each tab is a Shiny module, so its input ids are namespaced and local to it. The
-analysis functions take explicit arguments rather than Shiny's `input` object, so
-they can be called from the console:
-
-```r
-for (f in list.files("shiny-server/R", full.names = TRUE)) source(f)
-config <- loadCraveConfig("shiny-server/config.R")$config
-data   <- loadCraveData(config$datasets)
-res    <- plotVolcano(data, contrast = data$comparisons$FriendlyID[1], method = "DrugZ")
-res$plotdata
+  30 comparisons   15 experiments   12 cell lines   8 libraries
+  24 treated-versus-untreated contrasts: olaparib, talazoparib, cisplatin,
+     etoposide and camptothecin, in wild-type and in knockout backgrounds
+   6 essentialomes from those same experiments
+1500 genes       MAGeCK, DrugZ and (for the essentialomes) Chronos
+ 220 ontology rows over nine DNA repair classes
 ```
 
-## Performance notes
-
-On first start against a given dataset, CRAVE writes two things into the dataset
-directory:
-
-- `.crave-cache/meta-<dataset>.rds`, the wrangled metadata, keyed on the size and
-  modification time of the source files. Delete it at any time; it will be rebuilt.
-- two indexes on the `stat` table, which make gene-led queries (Correlate,
-  Pendragonator) index lookups rather than full scans.
-
-Both are skipped, with a note in the log, if the dataset directory is read-only —
-CRAVE still works, just more slowly. Making the directory writable once is worth it.
-
-## Static checks
-
-`tools/rcheck.py` stands in for an R linter, for editing environments where R is not
-installed. It needs only Python 3 and no packages.
+### example-analysis/
+A self-contained worked example of how to create your own CRAVE-compatible
+database using the (Exorcise)[https://github.com/SimonLammmm/exorcise] Docker image.
 
 ```
-python3 tools/rcheck.py            # everything
-python3 tools/rcheck.py --quiet    # just the checks that can fail
+docker pull simonlammmm/exorcise:latest
+```
+CRAVE ships with these example files.
+```
+example.counts.tsv.gz   a published olaparib screen, downsampled
+example.xlsx            the experimental design: samples, contrasts, analyses
+commands.txt            the two Exorcise commands that turn one into the other
+results/                what exorcise-analyse wrote: DrugZ scores per contrast,
+                        and the tabulator's combined table
+data/                   the CRAVE dataset exorcise-database built from those
 ```
 
-It exits 1 if a check marked `[HARD]` fails, so it works as a pre-commit hook or a
-CI step:
+## Submitting and managing data
 
-- **[HARD]** every file's brackets balance
-- **[HARD]** every `plotPanelUI()` has a matching `plotPanelServer()` and vice versa
-- **[HARD]** the three package manifests in `R/00_packages.R` match the three
-  `install.packages()` blocks in the Dockerfile
-- **[ADVISORY]** calls to names that are neither defined in the sources nor on the
-  script's allowlist of base and package functions
-- **[ADVISORY]** per module, input ids read by the server against `ns()` ids
-  declared in the UI
-- **[ADVISORY]** columns created and then re-read inside one `mutate()` or
-  `summarise()`, where dplyr's sequential evaluation means the later argument sees
-  the *new* value
+If enabled in `config.R`, **Submit** and **Manage** tabs are enabled and wrap
+(Exorcise)[https://github.com/SimonLammmm/exorcise] analysis and database features,
+starting from a counts matrix. These tabs write to datasets attached via
+options in your `config.R`. Enable the two tabs and name a Docker image in
+`exorcise_docker`.
 
-It is not an R parser: it strips comments and string literals and works on the text
-that remains. It cannot see type errors or anything that depends on runtime values,
-and the advisory sections have known false positives, described in their output.
+- **Submit** takes a counts matrix and an experimental design workbook, runs the
+  analyses the workbook asks for — MAGeCK, DrugZ, Chronos, or a manual table —
+  and adds the results to a dataset. It also hands back the raw output of those
+  analyses, as described below.
+- **Manage** relabels a dataset's metadata, rebuilds an experiment from a
+  corrected workbook, and removes experiments.
 
-See CHANGELOG.md for what changed in this release.
+Don't turn this feature on in deployment environments where you don't trust the
+users, such as over the internet. CRAVE doesn't authenticate users, so any user
+can access these tabs if they're enabled.
+
+Analyses run detached, so a long run does not block the app, and one job
+at a time per dataset. Closing the tab or browser does not stop a job.
+
+See CHANGELOG.md to see what changed in this release.

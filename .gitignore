@@ -1,0 +1,44 @@
+# What is not committed.
+#
+# The companion file is .dockerignore, which answers a different question -- what
+# the image needs in its build context -- so the two lists differ on purpose:
+#
+#   example-dataset/, example-analysis/, tools/, README.md, CHANGELOG.md
+#                      committed here, left out of the image: example data to
+#                      mount rather than to bake in, the static checks for
+#                      whoever edits a clone, and documentation
+#   shiny-server/config.R, build-and-push.sh, and the leftovers below
+#                      in neither
+
+# macOS and editor leftovers
+.DS_Store
+._*
+
+# R and Python working files. Rplots.pdf is what R opens when something plots
+# with no graphics device, which is every headless Rscript run against the app.
+.Rhistory
+.RData
+.Rproj.user/
+Rplots.pdf
+__pycache__/
+*.pyc
+
+# The deployer's own configuration. It carries absolute local paths and the
+# location of datasets that are not public, so it is the one file here that must
+# never be published. config.example.R is what ships in its place, and
+# R/09_config.R explains what CRAVE does when config.R is absent.
+/shiny-server/config.R
+
+# Publishing the image is done from the development tree, not from a clone.
+/build-and-push.sh
+
+# Built images and anything saved beside them.
+/images/
+*.tar.gz
+
+# Runtime state a dataset accumulates: the metadata cache CRAVE writes beside a
+# dataset, and everything the Submit tab keeps (workbooks, counts matrices,
+# result tables, job logs). Both appear inside example-dataset/data/ the first
+# time the app is run against it, and neither is part of the dataset.
+.crave-cache/
+.crave-submit/

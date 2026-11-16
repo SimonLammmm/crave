@@ -83,9 +83,12 @@ runGeneQuery <- function(data, screens, genes, stat, cutoff, method,
   )
 }
 
-#### Clustergram ####
+#### Heatmap: CRISPR scores, gene by screen ####
+# Called the Clustergram before 6.0.0, and runClustergram() then. Not to be
+# confused with Adjacency below, which is the gene-gene similarity matrix and was
+# itself called the Heatmap.
 
-runClustergram <- function(data, screens, genes, stat, cutoff, method,
+runHeatmap <- function(data, screens, genes, stat, cutoff, method,
                            geneDendrogram = TRUE, screenDendrogram = TRUE,
                            dendroMethod = CRAVE_DENDRO_DEFAULT,
                            distMethod = CRAVE_DISTANCE_DEFAULT,
@@ -178,9 +181,9 @@ runClustergram <- function(data, screens, genes, stat, cutoff, method,
   )
 }
 
-#### Correlation heatmap ####
+#### Adjacency: the gene-gene similarity matrix ####
 
-runHeatmap <- function(data, screens, genes, stat, cutoff, method,
+runAdjacency <- function(data, screens, genes, stat, cutoff, method,
                        similarity = CRAVE_SIMILARITY_DEFAULT,
                        dendroMethod = CRAVE_DENDRO_DEFAULT,
                        distMethod = CRAVE_DISTANCE_DEFAULT,
@@ -240,10 +243,25 @@ runHeatmap <- function(data, screens, genes, stat, cutoff, method,
 
 #### Correlation network ####
 
+#' @param community One of CRAVE_COMMUNITY_METHODS. "Off" leaves the tab as it
+#'   was: a visNetwork the user can drag about, and an adjacency list of pairs.
+#'   Anything else groups the genes, rings the groups, and adds the grouping to
+#'   the table.
+#' @param communityK Number of communities to look for.
+#' @param communityDist Distance the communities are formed on, which is separate
+#'   from the similarity the edges are drawn from. See 24_communities.R.
+#' @param membership Least membership a gene needs in a community to be ringed
+#'   with it. Only the probabilistic methods have memberships below 1.
 runNetwork <- function(data, screens, genes, stat, cutoff, method,
                        similarity = CRAVE_SIMILARITY_DEFAULT,
                        corrCutoff = defaults_corr_cutoff_value,
-                       normalise = FALSE) {
+                       normalise = FALSE,
+                       community = CRAVE_COMMUNITY_DEFAULT,
+                       communityK = CRAVE_CLARA_K_DEFAULT,
+                       communityDist = CRAVE_DISTANCE_DEFAULT,
+                       communityResolution = CRAVE_COMMUNITY_RESOLUTION_DEFAULT,
+                       membership = CRAVE_COMMUNITY_MEMBERSHIP_DEFAULT,
+                       opts = list()) {
   if (length(screens) < 2) {
     return(list(p = msgNetwork("At least two screens are needed for a network."),
                 plotdata = tibble(), renderer = "visNetwork"))
@@ -268,10 +286,48 @@ runNetwork <- function(data, screens, genes, stat, cutoff, method,
                 plotdata = tibble(), renderer = "visNetwork"))
   }
 
+  # The adjacency list, both triangles: similarityLong() pivots the whole square
+  # matrix, so each pair appears as (A, B) and again as (B, A), which is what
+  # makes the table readable as an adjacency matrix in long form.
+  out <- edges %>% transmute(`Gene A` = from, `Gene B` = to, value = corr)
+  names(out)[3] <- similarity
+
+  nodes <- unique(c(edges$from, edges$to))
+
+  #### Communities, if asked for ####
+  # Detected over the genes that are actually drawn, not every gene in the score
+  # matrix: a community containing genes the network does not show could not be
+  # ringed, and would describe a different picture to the one on screen. The edges
+  # go along too, for Louvain and Leiden, which partition the drawn graph itself.
+  drawnScores <- as.matrix(wide[match(nodes, wide$gene),
+                                setdiff(names(wide), "gene"), drop = FALSE])
+  rownames(drawnScores) <- nodes
+  communities <- detectCommunities(drawnScores, method = community,
+                                   k = communityK, metric = communityDist,
+                                   edges = edges, resolution = communityResolution)
+
+  if (isTRUE(communities$ok)) {
+    drawn <- tryCatch(
+      communityNetworkPlot(edges, communities, similarityName = similarity,
+                           threshold = membership, style = opts),
+      error = function(e) {
+        log_warn(paste0("The community diagram could not be drawn: ",
+                        conditionMessage(e)))
+        NULL
+      })
+    if (!is.null(drawn)) {
+      return(list(p = drawn$p, plotdata = withCommunityColumns(out, communities),
+                  height = drawn$height, renderer = "plotly"))
+    }
+  } else if (!isTRUE(communities$off)) {
+    # Asked for and not delivered: say why on the plot rather than quietly
+    # falling back to the ungrouped network, which looks like it worked.
+    return(c(msgResult(communities$message), list(plotdata = out)))
+  }
+
   # No set.seed() here: visNetwork lays the graph out in the browser, and seeding
   # the global RNG would make every later random draw in the process deterministic,
   # including Exorcise task ids and the "random" tie-breaking in rank().
-  nodes <- unique(c(edges$from, edges$to))
   g <- igraph::graph_from_data_frame(edges, directed = FALSE, vertices = nodes)
   igraph::V(g)$color.background <- "#F2E95C"
   igraph::V(g)$color.border     <- "#F0D337"
@@ -280,9 +336,6 @@ runNetwork <- function(data, screens, genes, stat, cutoff, method,
 
   p <- visNetwork::visIgraph(g) %>%
     visNetwork::visOptions(highlightNearest = list(enabled = TRUE, degree = 1, hover = TRUE))
-
-  out <- edges %>% transmute(`Gene A` = from, `Gene B` = to, value = corr)
-  names(out)[3] <- similarity
 
   list(p = p, plotdata = out, renderer = "visNetwork")
 }

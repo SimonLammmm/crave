@@ -1,6 +1,6 @@
 services:
   crave:
-    image: simonlammmm/crave:5.1.4
+    image: simonlammmm/crave:6.0.1
     ports:
       - "8080:3838"
     volumes:
@@ -15,6 +15,12 @@ services:
       # Optional: Exorcise dataset and Docker socket
       #- "/path/to/exorcise/data:/data/exorcise/"
       #- "/var/run/docker.sock:/var/run/docker.sock"
+
+      # The Submit and Manage tabs need that socket too, and nothing else: they run
+      # exorcise-analyse and exorcise-database, which read a workbook and a counts
+      # table rather than a genome. They do need each writable dataset to declare a
+      # `hostpath` in config.R, because the daemon on the other end of the socket
+      # resolves bind mounts on the host, not in this container.
 
       # Optional: branding assets
       #- "/path/to/branding/assets/:/app/www/"
